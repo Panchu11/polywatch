@@ -52,41 +52,35 @@ class PolymarketClient:
         return self._get(url, params=params)
 
     def get_recently_closed_markets(self, since_minutes: int = 30, limit: int = 200) -> List[Dict[str, Any]]:
-        # Best-effort: fetch recently updated/closed markets and filter locally
-        url = f"{GAMMA_API}/markets"
-        params_list = [
-            {"limit": limit, "closed": True, "sortBy": "closedTime", "sortDirection": "desc"},
-            {"limit": limit, "sortBy": "updatedAt", "sortDirection": "desc"},
-        ]
-        data: Any = None
-        for params in params_list:
-            try:
-                data = self._get(url, params=params)
-                break
-            except Exception:
-                data = None
-        if not data:
+        # Fallback: return empty list. The Gamma API doesn't reliably expose recently closed markets.
+        # Use get_recent_big_trades() instead to find recent large trades.
+        return []
+
+    def get_recent_big_trades(self, min_cash: float = 500, since_minutes: int = 30, limit: int = 1000) -> List[Dict[str, Any]]:
+        """Fetch recent large trades from the Data API."""
+        url = f"{DATA_API}/trades"
+        params = {
+            "limit": limit,
+            "filterType": "CASH",
+            "filterAmount": min_cash,
+        }
+        try:
+            data = self._get(url, params=params)
+        except Exception:
             return []
-        if isinstance(data, list):
-            items = data
-        elif isinstance(data, dict):
-            items = data.get("markets") or data.get("data") or data.get("items") or []
-        else:
+
+        if not isinstance(data, list):
             return []
-        if not isinstance(items, list):
-            return []
-        cutoff = now_utc() - timedelta(minutes=since_minutes)
+
+        cutoff_timestamp = int((now_utc() - timedelta(minutes=since_minutes)).timestamp())
         out: List[Dict[str, Any]] = []
-        for m in items:
-            # Heuristic fields
-            closed = bool((m.get("closed") if isinstance(m, dict) else False) or (m.get("resolved") if isinstance(m, dict) else False) or False)
-            closed_time = (m.get("closedTime") if isinstance(m, dict) else None) or (m.get("endDate") if isinstance(m, dict) else None) or (m.get("resolveTime") if isinstance(m, dict) else None) or (m.get("lastTradedAt") if isinstance(m, dict) else None)
-            try:
-                ct = parse_iso(str(closed_time)) if closed_time else None
-            except Exception:
-                ct = None
-            if closed and ct and ct >= cutoff:
-                out.append(m)
+        for trade in data:
+            if not isinstance(trade, dict):
+                continue
+            # Check if trade is recent (trades use Unix timestamp)
+            ts = trade.get("timestamp")
+            if ts and int(ts) >= cutoff_timestamp:
+                out.append(trade)
         return out
 
     def lookup_profile_name(self, wallet: str) -> Optional[str]:

@@ -14,7 +14,7 @@ WALLETS_PATH = "wallets.json"
 POSTED_PATH = "posted.json"
 PENDING_PATH = "tweets.json"
 
-DEFAULT_THRESHOLD = 25000
+DEFAULT_THRESHOLD = 10
 DEFAULT_SINCE_MINUTES = 30
 
 FOOTER = " Follow @Panchu2605 - The brain behind me."
@@ -99,63 +99,52 @@ def main():
     global_mode = env_bool("GLOBAL_MODE", True) or not wallets
 
     if global_mode:
-        print("[PolyWatch] Running in GLOBAL mode (scanning entire Polymarket)")
-        try:
-            markets = client.get_recently_closed_markets(since_minutes=since_minutes)
-        except Exception as e:
-            print("[PolyWatch] Error fetching recently closed markets:", e)
-            markets = []
-        if not markets:
-            print("[PolyWatch] No recently closed markets found in window.")
-        max_wallets_per_market = env_int("MAX_WALLETS_PER_MARKET", 250)
+        print("[PolyWatch] Running in GLOBAL mode (scanning recent big trades)")
         min_trade_cash = env_int("MIN_TRADE_CASH", 500)
-        for m in markets:
-            cond = m.get("conditionId") or (m.get("conditionIds") or [None])[0]
-            if not cond:
-                continue
-            title = m.get("title") or m.get("question")
+        try:
+            big_trades = client.get_recent_big_trades(min_cash=min_trade_cash, since_minutes=since_minutes, limit=1000)
+        except Exception as e:
+            print("[PolyWatch] Error fetching recent big trades:", e)
+            big_trades = []
+
+        if not big_trades:
+            print("[PolyWatch] No recent big trades found in window.")
+        else:
+            print(f"[PolyWatch] Found {len(big_trades)} recent big trades.")
+
+        # Collect unique wallets from trades
+        wallets_set = set()
+        for trade in big_trades:
+            w = trade.get("proxyWallet")
+            if w:
+                wallets_set.add(w)
+
+        print(f"[PolyWatch] Checking {len(wallets_set)} unique traders for big PnL...")
+
+        for wallet in wallets_set:
             try:
-                trades = client.get_trades_for_market(cond, limit=1000, min_cash=min_trade_cash)
+                claims = client.get_recent_big_claims(wallet, min_profit=threshold, since_minutes=since_minutes)
             except Exception as e:
-                print(f"[PolyWatch] Error fetching trades for market {cond}: {e}")
                 continue
-            wallets_set = []
-            seen = set()
-            for t in trades:
-                w = t.get("proxyWallet")
-                if not w or w in seen:
-                    continue
-                seen.add(w)
-                wallets_set.append(w)
-                if len(wallets_set) >= max_wallets_per_market:
-                    break
-            if not wallets_set:
+
+            if not claims:
                 continue
-            for wallet in wallets_set:
-                try:
-                    claims = client.get_recent_big_claims(wallet, min_profit=threshold, since_minutes=since_minutes)
-                except Exception as e:
-                    print(f"[PolyWatch] Error fetching claims for {wallet}: {e}")
+
+            display = client.lookup_profile_name(wallet) or short_wallet(wallet)
+            for row in claims:
+                uid = unique_id(wallet, row)
+                if posted.contains(uid):
                     continue
-                if not claims:
-                    continue
-                display = client.lookup_profile_name(wallet) or short_wallet(wallet)
-                for row in claims:
-                    if (row.get("conditionId") or '').lower() != str(cond).lower():
-                        continue
-                    uid = unique_id(wallet, row)
-                    if posted.contains(uid):
-                        continue
-                    text = format_tweet(display, row)
-                    entry = {
-                        "id": uid,
-                        "wallet": wallet,
-                        "display": display,
-                        "tweet": text,
-                        "row": row,
-                        "created_at": now_utc_iso(),
-                    }
-                    new_tweets.append(entry)
+                text = format_tweet(display, row)
+                entry = {
+                    "id": uid,
+                    "wallet": wallet,
+                    "display": display,
+                    "tweet": text,
+                    "row": row,
+                    "created_at": now_utc_iso(),
+                }
+                new_tweets.append(entry)
     else:
         if not wallets:
             print("[PolyWatch] No wallets configured — nothing to do.")
