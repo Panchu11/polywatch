@@ -14,7 +14,7 @@ WALLETS_PATH = "wallets.json"
 POSTED_PATH = "posted.json"
 PENDING_PATH = "tweets.json"
 
-DEFAULT_THRESHOLD = 10
+DEFAULT_THRESHOLD = 10000
 DEFAULT_SINCE_MINUTES = 30
 
 FOOTER = " Follow @Panchu2605 - The brain behind me."
