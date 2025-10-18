@@ -18,7 +18,7 @@ jobs:
       MIN_PROFIT_USD: "10000"
       MAX_TWEETS_PER_DAY: "17"
       SINCE_MINUTES: "90"       # fetch last 90 minutes
-      TOP_N_TRADES: "3"         # post top 3 biggest PnL trades
+      TOP_N_TRADES: "1"         # post top 1 biggest PnL trade
       TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
       TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
       TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
