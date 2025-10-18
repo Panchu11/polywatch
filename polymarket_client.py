@@ -67,15 +67,20 @@ class PolymarketClient:
                 data = None
         if not data:
             return []
-        items = data.get("markets") or data.get("data") or data
+        if isinstance(data, list):
+            items = data
+        elif isinstance(data, dict):
+            items = data.get("markets") or data.get("data") or data.get("items") or []
+        else:
+            return []
         if not isinstance(items, list):
             return []
         cutoff = now_utc() - timedelta(minutes=since_minutes)
         out: List[Dict[str, Any]] = []
         for m in items:
             # Heuristic fields
-            closed = bool(m.get("closed") or m.get("resolved") or False)
-            closed_time = m.get("closedTime") or m.get("endDate") or m.get("resolveTime") or m.get("lastTradedAt")
+            closed = bool((m.get("closed") if isinstance(m, dict) else False) or (m.get("resolved") if isinstance(m, dict) else False) or False)
+            closed_time = (m.get("closedTime") if isinstance(m, dict) else None) or (m.get("endDate") if isinstance(m, dict) else None) or (m.get("resolveTime") if isinstance(m, dict) else None) or (m.get("lastTradedAt") if isinstance(m, dict) else None)
             try:
                 ct = parse_iso(str(closed_time)) if closed_time else None
             except Exception:
@@ -92,7 +97,12 @@ class PolymarketClient:
             data = self._get(url, params=params)
         except Exception:
             return None
-        profiles = data.get("profiles") or []
+        if isinstance(data, dict):
+            profiles = data.get("profiles") or data.get("data") or []
+        elif isinstance(data, list):
+            profiles = data
+        else:
+            profiles = []
         for p in profiles:
             if str(p.get("proxyWallet", "")).lower() == wallet.lower():
                 # Prefer pseudonym then name
