@@ -1,0 +1,4 @@
+requests>=2.31.0
+# Tweepy is used for posting tweets (imported lazily at runtime)
+tweepy>=4.14.0
+

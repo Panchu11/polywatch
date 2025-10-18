@@ -1,0 +1,225 @@
+from __future__ import annotations
+import json
+import os
+from datetime import timedelta
+from pathlib import Path
+from typing import Any, Dict, List
+
+from polymarket_client import PolymarketClient
+from twitter_client import TwitterClient
+from state_store import PostedCache, save_json, load_json
+from utils import env_bool, env_int, format_usd, describe_pnl, now_utc, now_utc_iso, short_wallet
+
+WALLETS_PATH = "wallets.json"
+POSTED_PATH = "posted.json"
+PENDING_PATH = "tweets.json"
+
+DEFAULT_THRESHOLD = 25000
+DEFAULT_SINCE_MINUTES = 30
+
+FOOTER = " Follow @Panchu2605 - The brain behind me."
+MAX_TWEET_LEN = 280
+
+
+def load_wallets() -> List[str]:
+    """Load wallets from env WALLETS (comma or whitespace-separated) or wallets.json."""
+    env_val = os.getenv("WALLETS", "").strip()
+    addrs: List[str] = []
+    if env_val:
+        sep = "," if "," in env_val else None
+        addrs = [w.strip() for w in env_val.split(sep) if w.strip()]
+    if not addrs:
+        wallets = load_json(WALLETS_PATH, default=[])
+        if isinstance(wallets, list):
+            addrs = [w.strip() for w in wallets if isinstance(w, str) and w.strip()]
+    return addrs
+
+
+def unique_id(wallet: str, row: Dict[str, Any]) -> str:
+    # Use conditionId + endDate per user to identify a unique claim per wallet/market
+    return f"{wallet}:{row.get('conditionId')}:{row.get('endDate')}"
+
+
+def apply_footer_and_trim(text: str) -> str:
+    crafted = (text or "").strip() + FOOTER
+    if len(crafted) <= MAX_TWEET_LEN:
+        return crafted
+    return (crafted[: MAX_TWEET_LEN - 3]).rstrip() + "..."
+
+
+def format_tweet(name_or_addr: str, row: Dict[str, Any]) -> str:
+    title = row.get("title") or row.get("slug") or "a market"
+    outcome = row.get("outcome") or row.get("oppositeOutcome") or "?"
+    pnl = float(row.get("realizedPnl", 0) or 0)
+    who = name_or_addr
+    base = f"{who} claimed {outcome} on '{title}' with {describe_pnl(pnl)}!"
+    return apply_footer_and_trim(base)
+
+
+def within_daily_cap(cache: PostedCache, max_per_day: int) -> bool:
+    # Count from last 24 hours
+    since = (now_utc() - timedelta(hours=24)).isoformat()
+    return cache.count_since(since) < max_per_day
+
+
+def main():
+    print("[PolyWatch] Starting run @", now_utc_iso())
+    dry_run = env_bool("DRY_RUN", True)
+    threshold = env_int("MIN_PROFIT_USD", DEFAULT_THRESHOLD)
+    since_minutes = env_int("SINCE_MINUTES", DEFAULT_SINCE_MINUTES)
+    max_per_day = env_int("MAX_TWEETS_PER_DAY", 17)
+
+    wallets = load_wallets()
+
+    client = PolymarketClient()
+    tw = TwitterClient()
+    posted = PostedCache(POSTED_PATH)
+    pending: List[Dict[str, Any]] = load_json(PENDING_PATH, default=[])
+
+    new_tweets: List[Dict[str, Any]] = []
+
+    # Optional: single test tweet path
+    test_text = os.getenv("TEST_TWEET_TEXT", "").strip()
+    if test_text:
+        try:
+            tweet_text = apply_footer_and_trim(test_text)
+            if dry_run:
+                print("[PolyWatch] DRY_RUN: would tweet (TEST_TWEET_TEXT):", tweet_text)
+            else:
+                tweet_id = tw.post_tweet(tweet_text)
+                print("[PolyWatch] Test tweet posted:", tweet_id, tweet_text)
+            return
+        except Exception as e:
+            print("[PolyWatch] Error posting test tweet:", e)
+            return
+
+    # Enforce daily cap before attempting network posts; we still collect pending
+    cap_ok = within_daily_cap(posted, max_per_day)
+
+    global_mode = env_bool("GLOBAL_MODE", True) or not wallets
+
+    if global_mode:
+        print("[PolyWatch] Running in GLOBAL mode (scanning entire Polymarket)")
+        try:
+            markets = client.get_recently_closed_markets(since_minutes=since_minutes)
+        except Exception as e:
+            print("[PolyWatch] Error fetching recently closed markets:", e)
+            markets = []
+        if not markets:
+            print("[PolyWatch] No recently closed markets found in window.")
+        max_wallets_per_market = env_int("MAX_WALLETS_PER_MARKET", 250)
+        min_trade_cash = env_int("MIN_TRADE_CASH", 500)
+        for m in markets:
+            cond = m.get("conditionId") or (m.get("conditionIds") or [None])[0]
+            if not cond:
+                continue
+            title = m.get("title") or m.get("question")
+            try:
+                trades = client.get_trades_for_market(cond, limit=1000, min_cash=min_trade_cash)
+            except Exception as e:
+                print(f"[PolyWatch] Error fetching trades for market {cond}: {e}")
+                continue
+            wallets_set = []
+            seen = set()
+            for t in trades:
+                w = t.get("proxyWallet")
+                if not w or w in seen:
+                    continue
+                seen.add(w)
+                wallets_set.append(w)
+                if len(wallets_set) >= max_wallets_per_market:
+                    break
+            if not wallets_set:
+                continue
+            for wallet in wallets_set:
+                try:
+                    claims = client.get_recent_big_claims(wallet, min_profit=threshold, since_minutes=since_minutes)
+                except Exception as e:
+                    print(f"[PolyWatch] Error fetching claims for {wallet}: {e}")
+                    continue
+                if not claims:
+                    continue
+                display = client.lookup_profile_name(wallet) or short_wallet(wallet)
+                for row in claims:
+                    if (row.get("conditionId") or '').lower() != str(cond).lower():
+                        continue
+                    uid = unique_id(wallet, row)
+                    if posted.contains(uid):
+                        continue
+                    text = format_tweet(display, row)
+                    entry = {
+                        "id": uid,
+                        "wallet": wallet,
+                        "display": display,
+                        "tweet": text,
+                        "row": row,
+                        "created_at": now_utc_iso(),
+                    }
+                    new_tweets.append(entry)
+    else:
+        if not wallets:
+            print("[PolyWatch] No wallets configured — nothing to do.")
+            return
+        for wallet in wallets:
+            try:
+                claims = client.get_recent_big_claims(wallet, min_profit=threshold, since_minutes=since_minutes)
+            except Exception as e:
+                print(f"[PolyWatch] Error fetching claims for {wallet}: {e}")
+                continue
+            if not claims:
+                continue
+            # Lookup display name once per wallet
+            display = client.lookup_profile_name(wallet) or short_wallet(wallet)
+
+            for row in claims:
+                uid = unique_id(wallet, row)
+                if posted.contains(uid):
+                    continue
+                text = format_tweet(display, row)
+                entry = {
+                    "id": uid,
+                    "wallet": wallet,
+                    "display": display,
+                    "tweet": text,
+                    "row": row,
+                    "created_at": now_utc_iso(),
+                }
+                new_tweets.append(entry)
+
+    if not new_tweets:
+        print("[PolyWatch] No new qualifying claims found.")
+        return
+
+    # Save to pending queue for review (append)
+    pending.extend(new_tweets)
+    save_json(PENDING_PATH, pending)
+    print(f"[PolyWatch] Queued {len(new_tweets)} tweets to {PENDING_PATH}")
+
+    # Post if allowed
+    if not cap_ok:
+        print("[PolyWatch] Daily cap reached — not posting.")
+        return
+
+    posted_now = 0
+    for entry in new_tweets:
+        if not within_daily_cap(posted, max_per_day):
+            print("[PolyWatch] Reached daily cap mid-run — stopping posts.")
+            break
+        try:
+            if dry_run:
+                print("[PolyWatch] DRY_RUN: would tweet:", entry["tweet"])
+                tweet_id = None
+            else:
+                tweet_id = tw.post_tweet(entry["tweet"])  # may raise if creds missing
+                print("[PolyWatch] Tweet posted:", tweet_id, entry["tweet"])
+            posted.add(entry["id"], tweet_id)
+            posted_now += 1
+        except Exception as e:
+            print("[PolyWatch] Error posting tweet:", e)
+
+    print(f"[PolyWatch] Posted {posted_now} tweets this run (dry_run={dry_run}).")
+
+
+if __name__ == "__main__":
+    main()
+
