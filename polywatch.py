@@ -101,6 +101,8 @@ def main():
     if global_mode:
         print("[PolyWatch] Running in GLOBAL mode (scanning recent big trades)")
         min_trade_cash = env_int("MIN_TRADE_CASH", 500)
+        top_n = env_int("TOP_N_TRADES", 3)
+
         try:
             big_trades = client.get_recent_big_trades(min_cash=min_trade_cash, since_minutes=since_minutes, limit=1000)
         except Exception as e:
@@ -121,6 +123,8 @@ def main():
 
         print(f"[PolyWatch] Checking {len(wallets_set)} unique traders for big PnL...")
 
+        # Collect all claims and sort by absolute PnL (biggest first)
+        all_claims = []
         for wallet in wallets_set:
             try:
                 claims = client.get_recent_big_claims(wallet, min_profit=threshold, since_minutes=since_minutes)
@@ -135,16 +139,33 @@ def main():
                 uid = unique_id(wallet, row)
                 if posted.contains(uid):
                     continue
-                text = format_tweet(display, row)
-                entry = {
+                pnl = float(row.get("realizedPnl", 0) or 0)
+                all_claims.append({
                     "id": uid,
                     "wallet": wallet,
                     "display": display,
-                    "tweet": text,
                     "row": row,
-                    "created_at": now_utc_iso(),
-                }
-                new_tweets.append(entry)
+                    "pnl": pnl,
+                    "abs_pnl": abs(pnl),
+                })
+
+        # Sort by absolute PnL (biggest first) and take top N
+        all_claims.sort(key=lambda x: x["abs_pnl"], reverse=True)
+        top_claims = all_claims[:top_n]
+
+        print(f"[PolyWatch] Found {len(all_claims)} qualifying claims, posting top {len(top_claims)}")
+
+        for claim in top_claims:
+            text = format_tweet(claim["display"], claim["row"])
+            entry = {
+                "id": claim["id"],
+                "wallet": claim["wallet"],
+                "display": claim["display"],
+                "tweet": text,
+                "row": claim["row"],
+                "created_at": now_utc_iso(),
+            }
+            new_tweets.append(entry)
     else:
         if not wallets:
             print("[PolyWatch] No wallets configured — nothing to do.")
