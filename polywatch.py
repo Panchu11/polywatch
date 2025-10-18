@@ -51,8 +51,11 @@ def format_tweet(name_or_addr: str, row: Dict[str, Any]) -> str:
     title = row.get("title") or row.get("slug") or "a market"
     outcome = row.get("outcome") or row.get("oppositeOutcome") or "?"
     pnl = float(row.get("realizedPnl", 0) or 0)
-    who = name_or_addr
-    base = f"{who} claimed {outcome} on '{title}' with {describe_pnl(pnl)}!"
+    wallet = row.get("proxyWallet", "")
+
+    # Show full wallet address
+    who = wallet if wallet else name_or_addr
+    base = f"{who} claimed {outcome} on '{title}' with {describe_pnl(pnl)}! 📊 Tracked by @Panchu2605"
     return apply_footer_and_trim(base)
 
 
