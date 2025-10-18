@@ -15,7 +15,7 @@ jobs:
     env:
       DRY_RUN: "false"          # live posting enabled
       GLOBAL_MODE: "true"
-      MIN_PROFIT_USD: "25000"
+      MIN_PROFIT_USD: "10"
       MAX_TWEETS_PER_DAY: "17"
       SINCE_MINUTES: "30"
       TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
