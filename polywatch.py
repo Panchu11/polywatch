@@ -18,7 +18,7 @@ PENDING_PATH = "tweets.json"
 DEFAULT_THRESHOLD = 10000
 DEFAULT_SINCE_MINUTES = 30
 
-FOOTER = "\nBuilt by @Panchu2605"
+FOOTER = "\nBuilt by @ForgeLabs__"
 MAX_TWEET_LEN = 280
 
 
@@ -76,25 +76,30 @@ def apply_footer_and_trim(text: str, wallet: str = "", pnl: float = 0, market: s
     return crafted
 
 
-def format_tweet(ai_client: AIClient, wallet: str, row: Dict[str, Any]) -> str:
+def format_tweet(ai_client: AIClient, wallet: str, row: Dict[str, Any], client: PolymarketClient = None) -> str:
     """Generate tweet using AI model with multi-line format."""
     title = row.get("title") or row.get("slug") or "a market"
     outcome = row.get("outcome") or row.get("oppositeOutcome") or "?"
     pnl = float(row.get("realizedPnl", 0) or 0)
     full_wallet = wallet or row.get("proxyWallet", "")
 
-    # Use shortened wallet for display
-    short_addr = short_wallet(full_wallet)
+    # Try to get profile name, fallback to shortened wallet
+    display_name = None
+    if client:
+        display_name = client.lookup_profile_name(full_wallet)
+
+    if not display_name:
+        display_name = short_wallet(full_wallet)
 
     # Try to generate AI tweet
-    ai_tweet = ai_client.generate_tweet(short_addr, pnl, title, outcome)
+    ai_tweet = ai_client.generate_tweet(display_name, pnl, title, outcome)
 
     if ai_tweet:
         # Use AI-generated tweet
         base = ai_tweet
     else:
         # Fallback to simple format if AI fails
-        base = f"{short_addr} just made a big move on '{title}' with {describe_pnl(pnl)}! 🎯"
+        base = f"{display_name} just made a big move on '{title}' with {describe_pnl(pnl)}! 🎯"
 
     return apply_footer_and_trim(base, full_wallet, pnl, title, outcome)
 
@@ -200,7 +205,7 @@ def main():
         print(f"[PolyWatch] Found {len(all_claims)} qualifying claims, posting top {len(top_claims)}")
 
         for claim in top_claims:
-            text = format_tweet(ai, claim["wallet"], claim["row"])
+            text = format_tweet(ai, claim["wallet"], claim["row"], client)
             entry = {
                 "id": claim["id"],
                 "wallet": claim["wallet"],
@@ -229,7 +234,7 @@ def main():
                 uid = unique_id(wallet, row)
                 if posted.contains(uid):
                     continue
-                text = format_tweet(ai, wallet, row)
+                text = format_tweet(ai, wallet, row, client)
                 entry = {
                     "id": uid,
                     "wallet": wallet,
