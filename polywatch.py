@@ -206,6 +206,10 @@ def main():
         print(f"[PolyWatch] Found {len(all_claims)} qualifying claims, posting top {len(top_claims)}")
 
         for claim in top_claims:
+            # Double-check: skip if already posted (deduplication)
+            if posted.contains(claim["id"]):
+                print(f"[PolyWatch] Skipping {claim['id']} — already posted")
+                continue
             text = format_tweet(ai, claim["wallet"], claim["row"], client)
             entry = {
                 "id": claim["id"],

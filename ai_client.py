@@ -29,43 +29,43 @@ class AIClient:
         if is_win:
             # Multiple diverse winning prompts to avoid repetition
             win_prompts = [
-                f"""Generate a SHORT, UNHINGED, PROFANE WINNER tweet about {wallet} making {pnl_str} profit on Polymarket.
+                f"""Generate a SHORT, UNHINGED, PROFANE WINNER tweet about {wallet} making {pnl_str} profit.
 Market: {market} - {outcome}
 
-KEEP IT SHORT (3-4 lines max). Use line breaks. Be funny, profane, chaotic. Use emojis. Mention "Polymarket" or "@Polymarket" ONCE in the middle/body, NOT at the start. Never start with @mention!""",
-                f"""Generate a SHORT, CHAOTIC, PROFANE tweet celebrating {wallet} CRUSHING IT with {pnl_str} on Polymarket.
+KEEP IT SHORT (3-4 lines max). Use line breaks. Be funny, profane, chaotic. Use emojis. MUST include @Polymarket tag ONCE in the middle/body, NOT at the start. Never start with @mention!""",
+                f"""Generate a SHORT, CHAOTIC, PROFANE tweet celebrating {wallet} CRUSHING IT with {pnl_str}.
 Market: {market} - {outcome}
 
-KEEP IT SHORT (3-4 lines). Use line breaks. Be insane, profane, celebratory. Lots of emojis. Mention @Polymarket or Polymarket ONCE in the body, NOT at start. Never start with @!""",
-                f"""Generate a SHORT, BONKERS, PROFANE tweet about {wallet} PRINTING {pnl_str} on Polymarket.
+KEEP IT SHORT (3-4 lines). Use line breaks. Be insane, profane, celebratory. Lots of emojis. MUST tag @Polymarket ONCE in the body, NOT at start. Never start with @!""",
+                f"""Generate a SHORT, BONKERS, PROFANE tweet about {wallet} PRINTING {pnl_str}.
 Market: {market} - {outcome}
 
-KEEP IT SHORT (3-4 lines max). Line breaks. Be unhinged, profane, wild. Emojis. Mention Polymarket or @Polymarket ONCE in middle/body, NEVER at the start!""",
-                f"""Generate a SHORT, DERANGED, PROFANE tweet about {wallet} MOONING with {pnl_str} on Polymarket.
+KEEP IT SHORT (3-4 lines max). Line breaks. Be unhinged, profane, wild. Emojis. MUST mention @Polymarket ONCE in middle/body, NEVER at the start!""",
+                f"""Generate a SHORT, DERANGED, PROFANE tweet about {wallet} MOONING with {pnl_str}.
 Market: {market} - {outcome}
 
-KEEP IT SHORT (3-4 lines). Line breaks. Be unhinged, profane, chaotic. Emojis. Tag @Polymarket or say Polymarket ONCE in the body, NOT at beginning!""",
+KEEP IT SHORT (3-4 lines). Line breaks. Be unhinged, profane, chaotic. Emojis. MUST tag @Polymarket ONCE in the body, NOT at beginning!""",
             ]
             prompt = win_prompts[hash(wallet) % len(win_prompts)]
         else:
             # Multiple diverse losing prompts to avoid repetition
             loss_prompts = [
-                f"""Generate a SHORT, UNHINGED, PROFANE LOSER tweet about {wallet} LOSING {pnl_str} on Polymarket.
+                f"""Generate a SHORT, UNHINGED, PROFANE LOSER tweet about {wallet} LOSING {pnl_str}.
 Market: {market} - {outcome}
 
-KEEP IT SHORT (3-4 lines max). Line breaks. Be funny, profane, roast them. Emojis. Mention Polymarket or @Polymarket ONCE in the body, NOT at start!""",
-                f"""Generate a SHORT, UNHINGED, PROFANE tweet about {wallet} GETTING REKT for {pnl_str} on Polymarket.
+KEEP IT SHORT (3-4 lines max). Line breaks. Be funny, profane, roast them. Emojis. MUST include @Polymarket tag ONCE in the body, NOT at start!""",
+                f"""Generate a SHORT, UNHINGED, PROFANE tweet about {wallet} GETTING REKT for {pnl_str}.
 Market: {market} - {outcome}
 
-KEEP IT SHORT (3-4 lines). Line breaks. Be insane, profane, roast hard. Emojis. Mention @Polymarket or Polymarket ONCE in middle, NEVER at the start!""",
-                f"""Generate a SHORT, BONKERS, PROFANE tweet about {wallet} BLOWING {pnl_str} on Polymarket.
+KEEP IT SHORT (3-4 lines). Line breaks. Be insane, profane, roast hard. Emojis. MUST tag @Polymarket ONCE in middle, NEVER at the start!""",
+                f"""Generate a SHORT, BONKERS, PROFANE tweet about {wallet} BLOWING {pnl_str}.
 Market: {market} - {outcome}
 
-KEEP IT SHORT (3-4 lines max). Line breaks. Be unhinged, profane, roast. Emojis. Mention Polymarket or @Polymarket ONCE in body, NOT at beginning!""",
-                f"""Generate a SHORT, DERANGED, PROFANE tweet about {wallet} DUMPING {pnl_str} on Polymarket.
+KEEP IT SHORT (3-4 lines max). Line breaks. Be unhinged, profane, roast. Emojis. MUST mention @Polymarket ONCE in body, NOT at beginning!""",
+                f"""Generate a SHORT, DERANGED, PROFANE tweet about {wallet} DUMPING {pnl_str}.
 Market: {market} - {outcome}
 
-KEEP IT SHORT (3-4 lines). Line breaks. Be unhinged, profane, chaotic. Emojis. Tag @Polymarket or say Polymarket ONCE in the body, NOT at start!""",
+KEEP IT SHORT (3-4 lines). Line breaks. Be unhinged, profane, chaotic. Emojis. MUST tag @Polymarket ONCE in the body, NOT at start!""",
             ]
             prompt = loss_prompts[hash(wallet) % len(loss_prompts)]
 
