@@ -32,19 +32,23 @@ class AIClient:
                 f"""Generate an EXTREMELY UNHINGED, PROFANE, CHAOTIC WINNER tweet about {wallet} making {pnl_str} profit on @Polymarket. MUST mention @Polymarket explicitly.
 Market: {market} - {outcome}
 
-Be INSANELY funny, use profanity, be chaotic and celebratory. Use LOTS of emojis. MAXIMUM UNHINGED. MUST include @Polymarket. Write a COMPLETE SENTENCE that doesn't get cut off. Go wild!""",
+FORMAT WITH LINE BREAKS for readability on X. Use multiple lines, not one continuous block. Each sentence or thought on a new line.
+Be INSANELY funny, use profanity, be chaotic and celebratory. Use LOTS of emojis. MAXIMUM UNHINGED. MUST include @Polymarket. Go wild, no character limit!""",
                 f"""Generate a COMPLETELY UNHINGED, CHAOTIC, PROFANE tweet celebrating {wallet} CRUSHING IT with {pnl_str} on @Polymarket. MUST mention @Polymarket.
 Market: {market} - {outcome}
 
-Be absolutely INSANE, use extreme profanity, be celebratory and chaotic. Use TONS of emojis. MAXIMUM CHAOS. MUST include @Polymarket. Write COMPLETE SENTENCES. No limits, go crazy!""",
+FORMAT WITH LINE BREAKS for readability on X. Use multiple lines, not one continuous block. Each sentence or thought on a new line.
+Be absolutely INSANE, use extreme profanity, be celebratory and chaotic. Use TONS of emojis. MAXIMUM CHAOS. MUST include @Polymarket. No limits, go crazy!""",
                 f"""Generate an ABSOLUTELY BONKERS, PROFANE, UNHINGED tweet about {wallet} PRINTING {pnl_str} on @Polymarket. MUST mention @Polymarket explicitly.
 Market: {market} - {outcome}
 
-Be MAXIMALLY UNHINGED, use profanity, be chaotic and wild. Use LOTS of emojis. EXTREME CHAOS. MUST include @Polymarket. Write COMPLETE SENTENCES that flow naturally. Be insane!""",
+FORMAT WITH LINE BREAKS for readability on X. Use multiple lines, not one continuous block. Each sentence or thought on a new line.
+Be MAXIMALLY UNHINGED, use profanity, be chaotic and wild. Use LOTS of emojis. EXTREME CHAOS. MUST include @Polymarket. No character limit, be insane!""",
                 f"""Generate a COMPLETELY DERANGED, PROFANE, CHAOTIC tweet about {wallet} MOONING with {pnl_str} on @Polymarket. MUST mention @Polymarket.
 Market: {market} - {outcome}
 
-Be INSANELY UNHINGED, use extreme profanity, be absolutely chaotic. Use TONS of emojis. MAXIMUM UNHINGED. MUST include @Polymarket. Write COMPLETE SENTENCES. Go absolutely wild!""",
+FORMAT WITH LINE BREAKS for readability on X. Use multiple lines, not one continuous block. Each sentence or thought on a new line.
+Be INSANELY UNHINGED, use extreme profanity, be absolutely chaotic. Use TONS of emojis. MAXIMUM UNHINGED. MUST include @Polymarket. Go absolutely wild!""",
             ]
             prompt = win_prompts[hash(wallet) % len(win_prompts)]
         else:
@@ -53,19 +57,23 @@ Be INSANELY UNHINGED, use extreme profanity, be absolutely chaotic. Use TONS of 
                 f"""Generate an EXTREMELY UNHINGED, PROFANE, CHAOTIC LOSER tweet about {wallet} LOSING {pnl_str} on @Polymarket. MUST mention @Polymarket explicitly.
 Market: {market} - {outcome}
 
-Be INSANELY funny, use profanity, roast them hard, be chaotic. Use LOTS of emojis. MAXIMUM UNHINGED. MUST include @Polymarket. Write COMPLETE SENTENCES. Go wild!""",
+FORMAT WITH LINE BREAKS for readability on X. Use multiple lines, not one continuous block. Each sentence or thought on a new line.
+Be INSANELY funny, use profanity, roast them hard, be chaotic. Use LOTS of emojis. MAXIMUM UNHINGED. MUST include @Polymarket. No character limit, go wild!""",
                 f"""Generate a COMPLETELY UNHINGED, PROFANE, CHAOTIC tweet about {wallet} GETTING REKT for {pnl_str} on @Polymarket. MUST mention @Polymarket.
 Market: {market} - {outcome}
 
-Be absolutely INSANE, use extreme profanity, roast them mercilessly, be chaotic. Use TONS of emojis. MAXIMUM CHAOS. MUST include @Polymarket. Write COMPLETE SENTENCES. No limits!""",
+FORMAT WITH LINE BREAKS for readability on X. Use multiple lines, not one continuous block. Each sentence or thought on a new line.
+Be absolutely INSANE, use extreme profanity, roast them mercilessly, be chaotic. Use TONS of emojis. MAXIMUM CHAOS. MUST include @Polymarket. No limits!""",
                 f"""Generate an ABSOLUTELY BONKERS, PROFANE, UNHINGED tweet about {wallet} BLOWING {pnl_str} on @Polymarket. MUST mention @Polymarket explicitly.
 Market: {market} - {outcome}
 
-Be MAXIMALLY UNHINGED, use profanity, roast them hard, be chaotic and wild. Use LOTS of emojis. EXTREME CHAOS. MUST include @Polymarket. Write COMPLETE SENTENCES. Go insane!""",
+FORMAT WITH LINE BREAKS for readability on X. Use multiple lines, not one continuous block. Each sentence or thought on a new line.
+Be MAXIMALLY UNHINGED, use profanity, roast them hard, be chaotic and wild. Use LOTS of emojis. EXTREME CHAOS. MUST include @Polymarket. Go insane!""",
                 f"""Generate a COMPLETELY DERANGED, PROFANE, CHAOTIC tweet about {wallet} DUMPING {pnl_str} on @Polymarket. MUST mention @Polymarket.
 Market: {market} - {outcome}
 
-Be INSANELY UNHINGED, use extreme profanity, roast them, be absolutely chaotic. Use TONS of emojis. MAXIMUM UNHINGED. MUST include @Polymarket. Write COMPLETE SENTENCES. Go wild!""",
+FORMAT WITH LINE BREAKS for readability on X. Use multiple lines, not one continuous block. Each sentence or thought on a new line.
+Be INSANELY UNHINGED, use extreme profanity, roast them, be absolutely chaotic. Use TONS of emojis. MAXIMUM UNHINGED. MUST include @Polymarket. Go wild!""",
             ]
             prompt = loss_prompts[hash(wallet) % len(loss_prompts)]
 
@@ -79,7 +87,7 @@ Be INSANELY UNHINGED, use extreme profanity, roast them, be absolutely chaotic. 
                 json={
                     "model": self.model_id,
                     "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 300,
+                    "max_tokens": 150,
                     "temperature": 0.9,  # High temperature for unhinged behavior
                 },
                 timeout=30,
