@@ -13,10 +13,9 @@ from utils import env_bool, env_int, format_usd, describe_pnl, now_utc, now_utc_
 
 WALLETS_PATH = "wallets.json"
 POSTED_PATH = "posted.json"
-PENDING_PATH = "tweets.json"
 
 DEFAULT_THRESHOLD = 10000
-DEFAULT_SINCE_MINUTES = 30
+DEFAULT_SINCE_MINUTES = 90
 
 FOOTER = "\nBuilt by @ForgeLabs__"
 MAX_TWEET_LEN = 10000  # X Premium: no character limit
@@ -124,9 +123,6 @@ def main():
     tw = TwitterClient()
     ai = AIClient()
     posted = PostedCache(POSTED_PATH)
-    pending: List[Dict[str, Any]] = load_json(PENDING_PATH, default=[])
-
-    new_tweets: List[Dict[str, Any]] = []
 
     # Optional: single test tweet path
     test_text = os.getenv("TEST_TWEET_TEXT", "").strip()
@@ -143,15 +139,17 @@ def main():
             print("[PolyWatch] Error posting test tweet:", e)
             return
 
-    # Enforce daily cap before attempting network posts; we still collect pending
+    # Check daily cap
     cap_ok = within_daily_cap(posted, max_per_day)
+    if not cap_ok:
+        print("[PolyWatch] Daily cap reached — not posting.")
+        return
 
     global_mode = env_bool("GLOBAL_MODE", True) or not wallets
 
     if global_mode:
         print("[PolyWatch] Running in GLOBAL mode (scanning recent big trades)")
         min_trade_cash = env_int("MIN_TRADE_CASH", 500)
-        top_n = env_int("TOP_N_TRADES", 3)
 
         try:
             big_trades = client.get_recent_big_trades(min_cash=min_trade_cash, since_minutes=since_minutes, limit=1000)
@@ -161,8 +159,9 @@ def main():
 
         if not big_trades:
             print("[PolyWatch] No recent big trades found in window.")
-        else:
-            print(f"[PolyWatch] Found {len(big_trades)} recent big trades.")
+            return
+
+        print(f"[PolyWatch] Found {len(big_trades)} recent big trades.")
 
         # Collect unique wallets from trades
         wallets_set = set()
@@ -188,6 +187,7 @@ def main():
             for row in claims:
                 uid = unique_id(wallet, row)
                 if posted.contains(uid):
+                    print(f"[PolyWatch] Skipping {uid} — already posted")
                     continue
                 pnl = float(row.get("realizedPnl", 0) or 0)
                 all_claims.append({
@@ -199,97 +199,39 @@ def main():
                     "abs_pnl": abs(pnl),
                 })
 
-        # Sort by absolute PnL (biggest first) and take top N
-        all_claims.sort(key=lambda x: x["abs_pnl"], reverse=True)
-        top_claims = all_claims[:top_n]
-
-        print(f"[PolyWatch] Found {len(all_claims)} qualifying claims, posting top {len(top_claims)}")
-
-        for claim in top_claims:
-            # Double-check: skip if already posted (deduplication)
-            if posted.contains(claim["id"]):
-                print(f"[PolyWatch] Skipping {claim['id']} — already posted")
-                continue
-            text = format_tweet(ai, claim["wallet"], claim["row"], client)
-            entry = {
-                "id": claim["id"],
-                "wallet": claim["wallet"],
-                "display": claim["display"],
-                "tweet": text,
-                "row": claim["row"],
-                "created_at": now_utc_iso(),
-            }
-            new_tweets.append(entry)
-    else:
-        if not wallets:
-            print("[PolyWatch] No wallets configured — nothing to do.")
+        if not all_claims:
+            print("[PolyWatch] No new qualifying claims found.")
             return
-        for wallet in wallets:
-            try:
-                claims = client.get_recent_big_claims(wallet, min_profit=threshold, since_minutes=since_minutes)
-            except Exception as e:
-                print(f"[PolyWatch] Error fetching claims for {wallet}: {e}")
-                continue
-            if not claims:
-                continue
-            # Lookup display name once per wallet
-            display = client.lookup_profile_name(wallet) or short_wallet(wallet)
 
-            for row in claims:
-                uid = unique_id(wallet, row)
-                if posted.contains(uid):
-                    continue
-                text = format_tweet(ai, wallet, row, client)
-                entry = {
-                    "id": uid,
-                    "wallet": wallet,
-                    "display": display,
-                    "tweet": text,
-                    "row": row,
-                    "created_at": now_utc_iso(),
-                }
-                new_tweets.append(entry)
+        # Sort by absolute PnL (biggest first) and take top 1
+        all_claims.sort(key=lambda x: x["abs_pnl"], reverse=True)
+        top_claim = all_claims[0]
 
-    if not new_tweets:
-        print("[PolyWatch] No new qualifying claims found.")
-        return
+        print(f"[PolyWatch] Found {len(all_claims)} qualifying claims, posting top 1")
 
-    # Deduplicate: filter out tweets already in pending queue
-    pending_ids = {entry["id"] for entry in pending}
-    new_tweets_deduped = [t for t in new_tweets if t["id"] not in pending_ids]
+        # Generate and post tweet immediately
+        text = format_tweet(ai, top_claim["wallet"], top_claim["row"], client)
 
-    if not new_tweets_deduped:
-        print("[PolyWatch] All new tweets already in pending queue — skipping.")
-        return
-
-    # Save to pending queue for review (append)
-    pending.extend(new_tweets_deduped)
-    save_json(PENDING_PATH, pending)
-    print(f"[PolyWatch] Queued {len(new_tweets_deduped)} tweets to {PENDING_PATH} (total pending: {len(pending)})")
-
-    # Post if allowed
-    if not cap_ok:
-        print("[PolyWatch] Daily cap reached — not posting.")
-        return
-
-    posted_now = 0
-    for entry in new_tweets:
-        if not within_daily_cap(posted, max_per_day):
-            print("[PolyWatch] Reached daily cap mid-run — stopping posts.")
-            break
         try:
             if dry_run:
-                print("[PolyWatch] DRY_RUN: would tweet:", entry["tweet"])
+                print("[PolyWatch] DRY_RUN: would tweet (trade_id: {})".format(top_claim["id"]))
                 tweet_id = None
             else:
-                tweet_id = tw.post_tweet(entry["tweet"])  # may raise if creds missing
-                print("[PolyWatch] Tweet posted:", tweet_id, entry["tweet"])
-            posted.add(entry["id"], tweet_id)
-            posted_now += 1
+                tweet_id = tw.post_tweet(text)
+                print("[PolyWatch] Tweet posted:", tweet_id)
         except Exception as e:
             print("[PolyWatch] Error posting tweet:", e)
+            return
 
-    print(f"[PolyWatch] Posted {posted_now} tweets this run (dry_run={dry_run}).")
+        # Always add to cache, even in dry-run
+        try:
+            posted.add(top_claim["id"], tweet_id)
+            print("[PolyWatch] Posted 1 tweet this run (dry_run={}).".format(dry_run))
+        except Exception as e:
+            print("[PolyWatch] Error saving to cache:", e)
+    else:
+        print("[PolyWatch] GLOBAL_MODE disabled and no wallets configured — nothing to do.")
+        return
 
 
 if __name__ == "__main__":
