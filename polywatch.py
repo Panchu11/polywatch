@@ -18,7 +18,7 @@ PENDING_PATH = "tweets.json"
 DEFAULT_THRESHOLD = 10000
 DEFAULT_SINCE_MINUTES = 30
 
-FOOTER = " Tracked by @Panchu2605"
+FOOTER = "\nBuilt by @Panchu2605"
 MAX_TWEET_LEN = 280
 
 
@@ -41,24 +41,43 @@ def unique_id(wallet: str, row: Dict[str, Any]) -> str:
     return f"{wallet}:{row.get('conditionId')}:{row.get('endDate')}"
 
 
-def apply_footer_and_trim(text: str, wallet: str = "") -> str:
-    """Apply footer and trim to fit Twitter character limit."""
-    footer = FOOTER
-    if wallet:
-        # Add Polymarket profile link
-        profile_link = f" https://polymarket.com/profile/{wallet}?ref=caneleo"
-        footer = profile_link + footer
+def apply_footer_and_trim(text: str, wallet: str = "", pnl: float = 0, market: str = "", outcome: str = "") -> str:
+    """Apply footer and trim to fit Twitter character limit with multi-line format."""
+    # Format: AI tweet + wallet/pnl info + market + link + footer
+    pnl_str = format_usd(abs(pnl))
 
-    crafted = (text or "").strip() + footer
-    if len(crafted) <= MAX_TWEET_LEN:
-        return crafted
-    # Trim to fit, leaving room for footer
-    available = MAX_TWEET_LEN - len(footer) - 3
-    return (text or "")[:available].rstrip() + "..." + footer
+    # Build multi-line tweet
+    lines = [
+        text.strip(),  # AI-generated content
+        "",
+        f"💰 {pnl_str} on {outcome}",
+        f"📊 Market: {market}",
+    ]
+
+    if wallet:
+        # Add Polymarket profile link on separate line with 🔗 indicator
+        profile_link = f"https://polymarket.com/profile/{wallet}?ref=caneleo"
+        lines.append("")
+        lines.append("🔗")
+        lines.append(profile_link)
+
+    lines.append("")
+    lines.append(FOOTER)
+
+    crafted = "\n".join(lines)
+
+    # If too long, trim the AI-generated content
+    if len(crafted) > MAX_TWEET_LEN:
+        available = MAX_TWEET_LEN - len("\n".join(lines[1:])) - 10
+        trimmed_text = text[:available].rstrip() + "..."
+        lines[0] = trimmed_text
+        crafted = "\n".join(lines)
+
+    return crafted
 
 
 def format_tweet(ai_client: AIClient, wallet: str, row: Dict[str, Any]) -> str:
-    """Generate tweet using AI model with shortened wallet address."""
+    """Generate tweet using AI model with multi-line format."""
     title = row.get("title") or row.get("slug") or "a market"
     outcome = row.get("outcome") or row.get("oppositeOutcome") or "?"
     pnl = float(row.get("realizedPnl", 0) or 0)
@@ -75,9 +94,9 @@ def format_tweet(ai_client: AIClient, wallet: str, row: Dict[str, Any]) -> str:
         base = ai_tweet
     else:
         # Fallback to simple format if AI fails
-        base = f"{short_addr} claimed {outcome} on '{title}' with {describe_pnl(pnl)}! 📊"
+        base = f"{short_addr} just made a big move on '{title}' with {describe_pnl(pnl)}! 🎯"
 
-    return apply_footer_and_trim(base, full_wallet)
+    return apply_footer_and_trim(base, full_wallet, pnl, title, outcome)
 
 
 def within_daily_cap(cache: PostedCache, max_per_day: int) -> bool:

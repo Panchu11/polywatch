@@ -25,21 +25,21 @@ class AIClient:
         pnl_abs = abs(pnl)
         pnl_str = f"${pnl_abs:,.2f}"
 
-        # Create prompt for Dobby
+        # Create prompt for Dobby - EXTREMELY UNHINGED
         if is_win:
-            prompt = f"""Generate a SHORT, UNHINGED, CHAD WINNER tweet (max 200 chars) about someone making {pnl_str} profit on Polymarket.
+            prompt = f"""Generate an EXTREMELY UNHINGED, PROFANE, CHAOTIC WINNER tweet (max 150 chars) about someone making {pnl_str} profit on @Polymarket.
 Wallet: {wallet}
 Market: {market}
 Outcome: {outcome}
 
-Be funny, unhinged, and celebratory. Use emojis. Keep it under 200 characters."""
+Be INSANELY funny, use profanity, be chaotic and celebratory. Use lots of emojis. MAXIMUM UNHINGED. Keep it under 150 characters."""
         else:
-            prompt = f"""Generate a SHORT, UNHINGED, SHAME tweet (max 200 chars) about someone losing {pnl_str} on Polymarket.
+            prompt = f"""Generate an EXTREMELY UNHINGED, PROFANE, CHAOTIC LOSER tweet (max 150 chars) about someone losing {pnl_str} on @Polymarket.
 Wallet: {wallet}
 Market: {market}
 Outcome: {outcome}
 
-Be funny, unhinged, and roast them. Use emojis. Keep it under 200 characters."""
+Be INSANELY funny, use profanity, roast them hard, be chaotic. Use lots of emojis. MAXIMUM UNHINGED. Keep it under 150 characters."""
 
         try:
             response = requests.post(
