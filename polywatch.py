@@ -56,7 +56,8 @@ def apply_footer_and_trim(text: str, wallet: str = "", pnl: float = 0, market: s
 
     if wallet:
         # Add Polymarket profile link on separate line with 🔗 indicator
-        profile_link = f"https://polymarket.com/profile/{wallet}?ref=caneleo"
+        # Remove query params for better X preview generation
+        profile_link = f"https://polymarket.com/profile/{wallet}"
         lines.append("")
         lines.append("🔗")
         lines.append(profile_link)
