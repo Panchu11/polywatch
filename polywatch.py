@@ -19,7 +19,7 @@ DEFAULT_THRESHOLD = 10000
 DEFAULT_SINCE_MINUTES = 30
 
 FOOTER = "\nBuilt by @ForgeLabs__"
-MAX_TWEET_LEN = 280
+MAX_TWEET_LEN = 10000  # X Premium: no character limit
 
 
 def load_wallets() -> List[str]:
