@@ -27,19 +27,19 @@ class AIClient:
 
         # Create prompt for Dobby - EXTREMELY UNHINGED
         if is_win:
-            prompt = f"""Generate an EXTREMELY UNHINGED, PROFANE, CHAOTIC WINNER tweet (max 150 chars) about someone making {pnl_str} profit on @Polymarket.
+            prompt = f"""Generate an EXTREMELY UNHINGED, PROFANE, CHAOTIC WINNER tweet (max 150 chars) about someone making {pnl_str} profit on @Polymarket. MUST mention @Polymarket explicitly.
 Wallet: {wallet}
 Market: {market}
 Outcome: {outcome}
 
-Be INSANELY funny, use profanity, be chaotic and celebratory. Use lots of emojis. MAXIMUM UNHINGED. Keep it under 150 characters."""
+Be INSANELY funny, use profanity, be chaotic and celebratory. Use lots of emojis. MAXIMUM UNHINGED. MUST include @Polymarket. Keep it under 150 characters."""
         else:
-            prompt = f"""Generate an EXTREMELY UNHINGED, PROFANE, CHAOTIC LOSER tweet (max 150 chars) about someone losing {pnl_str} on @Polymarket.
+            prompt = f"""Generate an EXTREMELY UNHINGED, PROFANE, CHAOTIC LOSER tweet (max 150 chars) about someone losing {pnl_str} on @Polymarket. MUST mention @Polymarket explicitly.
 Wallet: {wallet}
 Market: {market}
 Outcome: {outcome}
 
-Be INSANELY funny, use profanity, roast them hard, be chaotic. Use lots of emojis. MAXIMUM UNHINGED. Keep it under 150 characters."""
+Be INSANELY funny, use profanity, roast them hard, be chaotic. Use lots of emojis. MAXIMUM UNHINGED. MUST include @Polymarket. Keep it under 150 characters."""
 
         try:
             response = requests.post(
