@@ -38,7 +38,8 @@ def describe_pnl(pnl: float | int) -> str:
 def short_wallet(addr: str) -> str:
     if not addr or len(addr) < 10:
         return addr
-    return f"{addr[:6]}…{addr[-4:]}"
+    # Format: 0xABC...XYZ (3 chars after 0x, then ..., then last 3 chars)
+    return f"{addr[:5]}...{addr[-3:]}"
 
 
 def env_bool(name: str, default: bool) -> bool:

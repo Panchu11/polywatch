@@ -124,35 +124,56 @@ def apply_footer_and_trim(text: str, wallet: str = "", pnl: float = 0, market: s
         if len(attempt) <= MAX_TWEET_LEN:
             return attempt
 
-    # Minimal safe AI line fallback (complete sentence, very short)
+    # If first sentence still too long, try shortening the MARKET TITLE first (not the AI text)
+    # This preserves the AI personality while fitting in 280 chars
+    if first_sentence:
+        words = market.split()
+        while len(words) > 3:  # Keep at least 3 words of market title
+            shorter_market = " ".join(words)
+            lines_c = build_lines_compact(first_sentence)
+            lines_c[2] = f"{chart_up} Market: {shorter_market}"
+            crafted_c = "\n".join(lines_c)
+            if len(crafted_c) <= MAX_TWEET_LEN:
+                return crafted_c
+            words.pop()  # drop last word and retry
+
+    # If still too long, try with even shorter market (down to 1 word)
+    if first_sentence:
+        words = market.split()
+        while words:
+            shorter_market = " ".join(words)
+            lines_c = build_lines_compact(first_sentence)
+            lines_c[2] = f"{chart_up} Market: {shorter_market}"
+            crafted_c = "\n".join(lines_c)
+            if len(crafted_c) <= MAX_TWEET_LEN:
+                return crafted_c
+            words.pop()
+
+    # ONLY NOW fall back to minimal AI (as absolute last resort)
     minimal_ai = "Massive move. @Polymarket"
     attempt = "\n".join(build_lines_compact(minimal_ai))
     if len(attempt) <= MAX_TWEET_LEN:
         return attempt
 
-    # If still too long (e.g., extremely long market title), iteratively shorten market by words
+    # If even minimal AI + metadata is too long, shorten market with minimal AI
     words = market.split()
     while words:
         shorter_market = " ".join(words)
-        # Rebuild compact variant with shortened market
         lines_c = build_lines_compact(minimal_ai)
-        # Replace market line (index 2 in compact format)
         lines_c[2] = f"{chart_up} Market: {shorter_market}"
         crafted_c = "\n".join(lines_c)
         if len(crafted_c) <= MAX_TWEET_LEN:
             return crafted_c
-        words.pop()  # drop last word and retry
+        words.pop()
 
-    # As a last resort, return the compact minimal variant (AI sentence intact) with a hard-cropped market at word boundary
+    # As a last resort, return the compact minimal variant with hard-cropped market
     mk = market
     lines_c = build_lines_compact(minimal_ai)
-    # Reduce market until it fits; do not cut the AI sentence
     while True:
         lines_c[2] = f"{chart_up} Market: {mk}".rstrip()
         crafted_c = "\n".join(lines_c)
         if len(crafted_c) <= MAX_TWEET_LEN or not mk:
             return crafted_c
-        # remove last word or last char
         if " " in mk:
             mk = mk.rsplit(" ", 1)[0]
         else:

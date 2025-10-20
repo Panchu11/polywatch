@@ -32,41 +32,49 @@ class AIClient:
                 f"""Generate a SHORT, UNHINGED, PROFANE WINNER tweet about {wallet} making {pnl_str} profit on {market} - {outcome}.
 
 RULES:
-- KEEP IT SHORT (1-2 sentences max, under 100 chars)
+- KEEP IT SHORT (1-2 sentences max, under 80 chars)
+- Start with the wallet address: {wallet}
+- Use THIRD PERSON (not "I" - say "just crushed" not "I just crushed")
 - Be funny, profane, chaotic
 - Use emojis
 - When mentioning the market, format it as: "on [market name] on @Polymarket"
-- Example: "just crushed the Trump election on @Polymarket"
+- Example: "{wallet} just crushed the Trump election on @Polymarket"
 - DO NOT put @Polymarket in weird places like "Trump vs @Polymarket Biden"
 - Never start with @mention!""",
                 f"""Generate a SHORT, CHAOTIC, PROFANE tweet celebrating {wallet} CRUSHING IT with {pnl_str} on {market} - {outcome}.
 
 RULES:
-- KEEP IT SHORT (1-2 sentences, under 100 chars)
+- KEEP IT SHORT (1-2 sentences, under 80 chars)
+- Start with the wallet address: {wallet}
+- Use THIRD PERSON (not "I" - say "fucking dominated" not "I fucking dominated")
 - Be insane, profane, celebratory
 - Lots of emojis
 - When mentioning the market, say: "on [market name] on @Polymarket"
-- Example: "ate the Steelers game on @Polymarket"
+- Example: "{wallet} ate the Steelers game on @Polymarket"
 - NEVER insert @Polymarket in the middle of the market name
 - Never start with @!""",
                 f"""Generate a SHORT, BONKERS, PROFANE tweet about {wallet} PRINTING {pnl_str} on {market} - {outcome}.
 
 RULES:
-- KEEP IT SHORT (1-2 sentences max, under 100 chars)
+- KEEP IT SHORT (1-2 sentences, under 80 chars)
+- Start with the wallet address: {wallet}
+- Use THIRD PERSON (not "I" - say "printed" not "I printed")
 - Be unhinged, profane, wild
 - Emojis
 - Format: "on [market name] on @Polymarket"
-- Example: "demolished the Lions vs Buccaneers on @Polymarket"
+- Example: "{wallet} demolished the Lions vs Buccaneers on @Polymarket"
 - DO NOT write "Lions vs @Polymarket Buccaneers"
 - NEVER at the start!""",
                 f"""Generate a SHORT, DERANGED, PROFANE tweet about {wallet} MOONING with {pnl_str} on {market} - {outcome}.
 
 RULES:
-- KEEP IT SHORT (1-2 sentences, under 100 chars)
+- KEEP IT SHORT (1-2 sentences, under 80 chars)
+- Start with the wallet address: {wallet}
+- Use THIRD PERSON (not "I" - say "mooned" not "I mooned")
 - Be unhinged, profane, chaotic
 - Emojis
 - Say: "on [market name] on @Polymarket"
-- Example: "nuked the election market on @Polymarket"
+- Example: "{wallet} nuked the election market on @Polymarket"
 - NEVER put @Polymarket inside the market name
 - NOT at beginning!""",
             ]
@@ -77,41 +85,49 @@ RULES:
                 f"""Generate a SHORT, UNHINGED, PROFANE LOSER tweet about {wallet} LOSING {pnl_str} on {market} - {outcome}.
 
 RULES:
-- KEEP IT SHORT (1-2 sentences max, under 100 chars)
+- KEEP IT SHORT (1-2 sentences max, under 80 chars)
+- Start with the wallet address: {wallet}
+- Use THIRD PERSON (not "I" - say "ate shit" not "I ate shit")
 - Be funny, profane, roast them
 - Emojis
 - Format: "on [market name] on @Polymarket"
-- Example: "ate shit on the Buccaneers game on @Polymarket"
+- Example: "{wallet} ate shit on the Buccaneers game on @Polymarket"
 - DO NOT write "Buccaneers vs @Polymarket Lions"
 - NOT at start!""",
                 f"""Generate a SHORT, UNHINGED, PROFANE tweet about {wallet} GETTING REKT for {pnl_str} on {market} - {outcome}.
 
 RULES:
-- KEEP IT SHORT (1-2 sentences, under 100 chars)
+- KEEP IT SHORT (1-2 sentences, under 80 chars)
+- Start with the wallet address: {wallet}
+- Use THIRD PERSON (not "I" - say "got destroyed" not "I got destroyed")
 - Be insane, profane, roast hard
 - Emojis
 - Say: "on [market name] on @Polymarket"
-- Example: "got destroyed on the Trump market on @Polymarket"
+- Example: "{wallet} got destroyed on the Trump market on @Polymarket"
 - NEVER insert @Polymarket in the middle of market name
 - NEVER at the start!""",
                 f"""Generate a SHORT, BONKERS, PROFANE tweet about {wallet} BLOWING {pnl_str} on {market} - {outcome}.
 
 RULES:
-- KEEP IT SHORT (1-2 sentences max, under 100 chars)
+- KEEP IT SHORT (1-2 sentences max, under 80 chars)
+- Start with the wallet address: {wallet}
+- Use THIRD PERSON (not "I" - say "blew it" not "I blew it")
 - Be unhinged, profane, roast
 - Emojis
 - Format: "on [market name] on @Polymarket"
-- Example: "blew it on the election on @Polymarket"
+- Example: "{wallet} blew it on the election on @Polymarket"
 - DO NOT put @Polymarket inside the market name
 - NOT at beginning!""",
                 f"""Generate a SHORT, DERANGED, PROFANE tweet about {wallet} DUMPING {pnl_str} on {market} - {outcome}.
 
 RULES:
-- KEEP IT SHORT (1-2 sentences, under 100 chars)
+- KEEP IT SHORT (1-2 sentences max, under 80 chars)
+- Start with the wallet address: {wallet}
+- Use THIRD PERSON (not "I" - say "dumped hard" not "I dumped hard")
 - Be unhinged, profane, chaotic
 - Emojis
 - Say: "on [market name] on @Polymarket"
-- Example: "dumped hard on the Steelers on @Polymarket"
+- Example: "{wallet} dumped hard on the Steelers on @Polymarket"
 - NEVER write "Steelers vs @Polymarket Ravens"
 - NOT at start!""",
             ]

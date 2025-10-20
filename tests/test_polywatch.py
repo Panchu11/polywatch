@@ -13,7 +13,8 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(format_usd(25200.5), "$25,200.50")
 
     def test_short_wallet(self):
-        self.assertEqual(short_wallet("0x1234567890abcdef"), "0x1234…cdef")
+        # Format: 0xABC...XYZ (3 chars after 0x, then ..., then last 3 chars)
+        self.assertEqual(short_wallet("0x1234567890abcdef"), "0x123...def")
 
 
 class TestPostedCache(unittest.TestCase):
@@ -42,7 +43,7 @@ class TestTweetFormatting(unittest.TestCase):
         ai = AIClient()  # AI client without API key will use fallback
         text = format_tweet(ai, wallet, row)
         # Should contain shortened wallet, outcome, and link
-        self.assertIn("0x1234…5678", text)  # shortened wallet
+        self.assertIn("0x123...678", text)  # shortened wallet (0xABC...XYZ format)
         self.assertIn("Yes", text)
         self.assertIn("polymarket.com/profile", text)  # Polymarket link
         self.assertIn("Built by @ForgeLabs__", text)  # footer
