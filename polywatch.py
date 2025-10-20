@@ -215,6 +215,9 @@ def main():
         try:
             if dry_run:
                 print("[PolyWatch] DRY_RUN: would tweet (trade_id: {})".format(top_claim["id"]))
+                # Save tweet content for inspection
+                with open("last_tweet.txt", "w", encoding="utf-8") as f:
+                    f.write(text)
                 tweet_id = None
             else:
                 tweet_id = tw.post_tweet(text)

@@ -34,9 +34,14 @@ class PolymarketClient:
         out: List[Dict[str, Any]] = []
         for row in rows:
             pnl = float(row.get("realizedPnl", 0) or 0)
-            end_date = row.get("endDate") or ""
-            ended = parse_iso(end_date)
-            if abs(pnl) >= min_profit and ended >= cutoff:
+
+            # The /closed-positions endpoint only returns positions that have been closed
+            # We should filter by when the position was actually closed, not market endDate
+            # However, the API may not expose the exact close timestamp
+            # For now, we'll accept all closed positions with sufficient PnL
+            # and rely on the deduplication cache to prevent re-posting
+
+            if abs(pnl) >= min_profit:
                 out.append(row)
         return out
 
