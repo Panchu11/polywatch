@@ -45,7 +45,32 @@ class TestTweetFormatting(unittest.TestCase):
         self.assertIn("0x1234…5678", text)  # shortened wallet
         self.assertIn("Yes", text)
         self.assertIn("polymarket.com/profile", text)  # Polymarket link
-        self.assertIn("Tracked by @Panchu2605", text)  # footer
+        self.assertIn("Built by @ForgeLabs__", text)  # footer
+
+    def test_enforce_280_and_no_sentence_cut(self):
+        wallet = "0x1234567890abcdef1234567890abcdef12345678"
+        row = {
+            "title": "Will Kim Moon-soo be the People's Power Party candidate for president?",
+            "outcome": "Yes",
+            "realizedPnl": 6977733.43,
+            "proxyWallet": wallet,
+        }
+
+        class FakeAI:
+            def generate_tweet(self, display_name, pnl, title, outcome):
+                # Multiple sentences, intentionally long, with a handle variant
+                return (
+                    "This trader just nuked the market like a degen god. "
+                    "Absolute chaos, rockets everywhere 🚀🔥! "
+                    "Numbers so stupid they make reality bend. @Polymarket668"
+                )
+
+        text = format_tweet(FakeAI(), wallet, row)
+        self.assertLessEqual(len(text), 280)
+        self.assertNotIn("...", text)
+        self.assertIn("Built by @ForgeLabs__", text)
+        self.assertIn("@Polymarket", text)
+        self.assertNotIn("@Polymarket668", text)
 
 
 if __name__ == "__main__":

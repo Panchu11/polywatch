@@ -28,22 +28,112 @@ class PolymarketClient:
         }
         return self._get(url, params=params)
 
-    def get_recent_big_claims(self, wallet: str, min_profit: float, since_minutes: int = 30) -> List[Dict[str, Any]]:
-        rows = self.get_closed_positions(wallet)
-        cutoff = now_utc() - timedelta(minutes=since_minutes)
-        out: List[Dict[str, Any]] = []
-        for row in rows:
-            pnl = float(row.get("realizedPnl", 0) or 0)
+    def get_recent_pnl_from_trades(self, since_minutes: int = 90, min_pnl: float = 1000) -> List[Dict[str, Any]]:
+        """
+        Calculate realized PnL from recent trades (last `since_minutes`).
 
-            # The /closed-positions endpoint only returns positions that have been closed
-            # We should filter by when the position was actually closed, not market endDate
-            # However, the API may not expose the exact close timestamp
-            # For now, we'll accept all closed positions with sufficient PnL
-            # and rely on the deduplication cache to prevent re-posting
+        Returns a list of dicts with:
+        - wallet: trader address
+        - conditionId: market condition ID
+        - title: market title
+        - outcome: outcome name
+        - realizedPnl: calculated PnL from trades
+        - endDate: market end date
+        - trade_count: number of trades in this position
+        - latest_trade_time: timestamp of most recent trade
 
-            if abs(pnl) >= min_profit:
-                out.append(row)
-        return out
+        Only includes positions with abs(realizedPnl) >= min_pnl.
+        """
+        # Fetch all recent trades
+        url = f"{DATA_API}/trades"
+        params = {
+            "limit": 10000,  # Get as many recent trades as possible
+        }
+
+        try:
+            all_trades = self._get(url, params=params)
+        except Exception as e:
+            print(f"[PolymarketClient] Error fetching trades: {e}")
+            return []
+
+        if not isinstance(all_trades, list):
+            return []
+
+        # Filter to only trades within time window
+        cutoff_timestamp = int((now_utc() - timedelta(minutes=since_minutes)).timestamp())
+        recent_trades = []
+        for trade in all_trades:
+            if not isinstance(trade, dict):
+                continue
+            ts = trade.get("timestamp")
+            if ts and int(ts) >= cutoff_timestamp:
+                recent_trades.append(trade)
+
+        if not recent_trades:
+            return []
+
+        # Group trades by (wallet, conditionId)
+        from collections import defaultdict
+        positions = defaultdict(lambda: {
+            "trades": [],
+            "wallet": None,
+            "conditionId": None,
+            "title": None,
+            "outcome": None,
+            "endDate": None,
+        })
+
+        for trade in recent_trades:
+            wallet = trade.get("proxyWallet")
+            condition_id = trade.get("conditionId")
+            if not wallet or not condition_id:
+                continue
+
+            key = (wallet, condition_id)
+            positions[key]["trades"].append(trade)
+            positions[key]["wallet"] = wallet
+            positions[key]["conditionId"] = condition_id
+            positions[key]["title"] = trade.get("title") or positions[key]["title"]
+            positions[key]["outcome"] = trade.get("outcome") or positions[key]["outcome"]
+            positions[key]["endDate"] = trade.get("endDate") or positions[key]["endDate"]
+
+        # Calculate PnL for each position
+        results = []
+        for (wallet, condition_id), pos_data in positions.items():
+            trades = pos_data["trades"]
+
+            # Simple PnL calculation: sum of (side * price * size)
+            # Buy = negative cash flow, Sell = positive cash flow
+            total_pnl = 0.0
+            for trade in trades:
+                side = trade.get("side", "").upper()
+                price = float(trade.get("price", 0) or 0)
+                size = float(trade.get("size", 0) or 0)
+
+                if side == "BUY":
+                    total_pnl -= price * size
+                elif side == "SELL":
+                    total_pnl += price * size
+
+            if abs(total_pnl) < min_pnl:
+                continue
+
+            # Get latest trade timestamp
+            latest_ts = max(int(t.get("timestamp", 0)) for t in trades)
+
+            results.append({
+                "wallet": wallet,
+                "conditionId": condition_id,
+                "title": pos_data["title"] or "Unknown Market",
+                "outcome": pos_data["outcome"] or "Unknown",
+                "realizedPnl": total_pnl,
+                "endDate": pos_data["endDate"],
+                "trade_count": len(trades),
+                "latest_trade_time": latest_ts,
+                "proxyWallet": wallet,  # For compatibility with existing code
+            })
+
+        return results
 
     def get_trades_for_market(self, condition_id: str, limit: int = 1000, min_cash: Optional[float] = None) -> List[Dict[str, Any]]:
         url = f"{DATA_API}/trades"

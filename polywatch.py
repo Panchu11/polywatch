@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import os
+import re
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, List
@@ -14,11 +15,11 @@ from utils import env_bool, env_int, format_usd, describe_pnl, now_utc, now_utc_
 WALLETS_PATH = "wallets.json"
 POSTED_PATH = "posted.json"
 
-DEFAULT_THRESHOLD = 10000
+DEFAULT_THRESHOLD = 1000
 DEFAULT_SINCE_MINUTES = 90
 
 FOOTER = "\nBuilt by @ForgeLabs__"
-MAX_TWEET_LEN = 10000  # X Premium: no character limit
+MAX_TWEET_LEN = 280  # Enforce classic 280-char limit
 
 
 def load_wallets() -> List[str]:
@@ -41,39 +42,160 @@ def unique_id(wallet: str, row: Dict[str, Any]) -> str:
 
 
 def apply_footer_and_trim(text: str, wallet: str = "", pnl: float = 0, market: str = "", outcome: str = "") -> str:
-    """Apply footer and trim to fit Twitter character limit with multi-line format."""
-    # Format: AI tweet + wallet/pnl info + market + link + footer
+    """Compose tweet with footer and metadata and keep total <= MAX_TWEET_LEN without cutting sentences."""
     pnl_str = format_usd(abs(pnl))
 
-    # Build multi-line tweet
-    lines = [
-        text.strip(),  # AI-generated content
-        "",
-        f"💰 {pnl_str} on {outcome}",
-        f"📊 Market: {market}",
-    ]
+    # Explicit Unicode escapes to avoid any source-encoding ambiguity
+    money_bag = "\U0001F4B0"
+    chart_up = "\U0001F4CA"
+    link_emoji = "\U0001F517"
 
-    if wallet:
-        # Add Polymarket profile link on separate line with 🔗 indicator
-        # Remove query params for better X preview generation
-        profile_link = f"https://polymarket.com/profile/{wallet}"
+    # Collapse AI multi-line into a single first-line paragraph
+    ai_line = " ".join((text or "").strip().splitlines())
+
+    # Ensure @Polymarket mention is present in the FIRST sentence so it survives trimming
+    _sent = re.split(r"(?<=[.!?])\s+", ai_line) if ai_line else []
+    if _sent:
+        if "@Polymarket" not in _sent[0]:
+            # Insert before terminal punctuation so it stays in sentence 0
+            m = re.match(r"^(.*?)([.!?]+)$", _sent[0])
+            if m:
+                _sent[0] = (m.group(1).rstrip() + " @Polymarket" + m.group(2))
+            else:
+                _sent[0] = (_sent[0].rstrip() + " @Polymarket")
+        ai_line = " ".join(_sent)
+    else:
+        ai_line = "@Polymarket"
+
+
+    def build_lines(ai: str) -> list[str]:
+        lines = [
+            ai.strip(),
+            "",
+            f"{money_bag} {pnl_str} on {outcome}",
+            f"{chart_up} Market: {market}",
+        ]
+        if wallet:
+            profile_link = f"https://polymarket.com/profile/{wallet}"
+            lines.append("")
+            lines.append(link_emoji)
+            lines.append(profile_link)
         lines.append("")
-        lines.append("🔗")
-        lines.append(profile_link)
+        lines.append(FOOTER)
+        return lines
 
-    lines.append("")
-    lines.append(FOOTER)
+    def build_lines_compact(ai: str) -> list[str]:
+        # Remove cosmetic blank lines to save characters
+        lines = [
+            ai.strip(),
+            f"{money_bag} {pnl_str} on {outcome}",
+            f"{chart_up} Market: {market}",
+        ]
+        if wallet:
+            profile_link = f"https://polymarket.com/profile/{wallet}"
+            lines.append(link_emoji)
+            lines.append(profile_link)
+        lines.append(FOOTER)
+        return lines
 
+    # Initial attempt with full formatting
+    lines = build_lines(ai_line)
     crafted = "\n".join(lines)
+    if len(crafted) <= MAX_TWEET_LEN:
+        return crafted
 
-    # If too long, trim the AI-generated content
-    if len(crafted) > MAX_TWEET_LEN:
-        available = MAX_TWEET_LEN - len("\n".join(lines[1:])) - 10
-        trimmed_text = text[:available].rstrip() + "..."
-        lines[0] = trimmed_text
-        crafted = "\n".join(lines)
+    # Sentence-aware fitting: include as many full sentences as fit
+    sentences = re.split(r"(?<=[.!?])\s+", ai_line) if ai_line else []
+    best = None
+    for i in range(1, len(sentences) + 1):
+        candidate_ai = " ".join(sentences[:i]).strip()
+        attempt = "\n".join(build_lines(candidate_ai))
+        if len(attempt) <= MAX_TWEET_LEN:
+            best = attempt
+        else:
+            break
+    if best:
+        return best
 
-    return crafted
+    # Try compact formatting with only the first sentence
+    first_sentence = (sentences[0].strip() if sentences else ai_line.split(".")[0].strip()) or ""
+    if first_sentence:
+        attempt = "\n".join(build_lines_compact(first_sentence))
+        if len(attempt) <= MAX_TWEET_LEN:
+            return attempt
+
+    # Minimal safe AI line fallback (complete sentence, very short)
+    minimal_ai = "Massive move. @Polymarket"
+    attempt = "\n".join(build_lines_compact(minimal_ai))
+    if len(attempt) <= MAX_TWEET_LEN:
+        return attempt
+
+    # If still too long (e.g., extremely long market title), iteratively shorten market by words
+    words = market.split()
+    while words:
+        shorter_market = " ".join(words)
+        # Rebuild compact variant with shortened market
+        lines_c = build_lines_compact(minimal_ai)
+        # Replace market line (index 2 in compact format)
+        lines_c[2] = f"{chart_up} Market: {shorter_market}"
+        crafted_c = "\n".join(lines_c)
+        if len(crafted_c) <= MAX_TWEET_LEN:
+            return crafted_c
+        words.pop()  # drop last word and retry
+
+    # As a last resort, return the compact minimal variant (AI sentence intact) with a hard-cropped market at word boundary
+    mk = market
+    lines_c = build_lines_compact(minimal_ai)
+    # Reduce market until it fits; do not cut the AI sentence
+    while True:
+        lines_c[2] = f"{chart_up} Market: {mk}".rstrip()
+        crafted_c = "\n".join(lines_c)
+        if len(crafted_c) <= MAX_TWEET_LEN or not mk:
+            return crafted_c
+        # remove last word or last char
+        if " " in mk:
+            mk = mk.rsplit(" ", 1)[0]
+        else:
+            mk = mk[:-1]
+
+
+def _sanitize_ai_text(text: str) -> str:
+    """Ensure @Polymarket is mentioned correctly in the format 'on @Polymarket'."""
+    # Normalize CRLF to LF and trim trailing spaces on lines
+    text = text.replace("\r", "")
+    text = "\n".join(line.rstrip() for line in text.split("\n"))
+
+    # Normalize any @Polymarket variants to canonical form
+    text = re.sub(r"@Polymarket\w+", "@Polymarket", text)
+
+    # Check if AI already used the correct format "on @Polymarket"
+    if "on @Polymarket" in text:
+        # Good! AI followed instructions. Just clean up spacing.
+        text = re.sub(r"\s+", " ", text).strip()
+        return text
+
+    # AI didn't use correct format. Remove all @Polymarket and add it properly.
+    # Remove ALL @Polymarket mentions
+    text = re.sub(r"@Polymarket\s*", "", text)
+
+    # Clean up any leftover artifacts from removal
+    text = re.sub(r"\s+\.\s+", ". ", text)  # " . " -> ". "
+    text = re.sub(r"\s+\.", ".", text)       # " ." -> "."
+    text = re.sub(r"\s+", " ", text).strip()
+
+    # Add "on @Polymarket" at the end of the FIRST sentence
+    sentences = re.split(r"(?<=[.!?])\s+", text) if text else []
+    if sentences:
+        # Add "on @Polymarket" before the terminal punctuation of the first sentence
+        m = re.match(r"^(.*?)([.!?]+)$", sentences[0])
+        if m:
+            sentences[0] = (m.group(1).rstrip() + " on @Polymarket" + m.group(2))
+        else:
+            sentences[0] = (sentences[0].rstrip() + " on @Polymarket")
+        text = " ".join(sentences)
+    else:
+        text = "on @Polymarket"
+    return text
 
 
 def format_tweet(ai_client: AIClient, wallet: str, row: Dict[str, Any], client: PolymarketClient = None) -> str:
@@ -95,11 +217,11 @@ def format_tweet(ai_client: AIClient, wallet: str, row: Dict[str, Any], client: 
     ai_tweet = ai_client.generate_tweet(display_name, pnl, title, outcome)
 
     if ai_tweet:
-        # Use AI-generated tweet
-        base = ai_tweet
+        # Use AI-generated tweet with sanitization
+        base = _sanitize_ai_text(ai_tweet)
     else:
-        # Fallback to simple format if AI fails
-        base = f"{display_name} just made a big move on '{title}' with {describe_pnl(pnl)}! 🎯"
+        # Fallback to simple format if AI fails - still include @Polymarket
+        base = f"{display_name} just made a big move on '{title}' with {describe_pnl(pnl)} via @Polymarket! \U0001F3AF"
 
     return apply_footer_and_trim(base, full_wallet, pnl, title, outcome)
 
@@ -148,56 +270,45 @@ def main():
     global_mode = env_bool("GLOBAL_MODE", True) or not wallets
 
     if global_mode:
-        print("[PolyWatch] Running in GLOBAL mode (scanning recent big trades)")
-        min_trade_cash = env_int("MIN_TRADE_CASH", 500)
+        print("[PolyWatch] Running in GLOBAL mode (calculating PnL from recent trades)")
 
         try:
-            big_trades = client.get_recent_big_trades(min_cash=min_trade_cash, since_minutes=since_minutes, limit=1000)
+            positions = client.get_recent_pnl_from_trades(since_minutes=since_minutes, min_pnl=threshold)
         except Exception as e:
-            print("[PolyWatch] Error fetching recent big trades:", e)
-            big_trades = []
-
-        if not big_trades:
-            print("[PolyWatch] No recent big trades found in window.")
+            print("[PolyWatch] Error calculating PnL from trades:", e)
+            import traceback
+            traceback.print_exc()
             return
 
-        print(f"[PolyWatch] Found {len(big_trades)} recent big trades.")
+        if not positions:
+            print("[PolyWatch] No qualifying positions found in the last {since_minutes} minutes.")
+            return
 
-        # Collect unique wallets from trades
-        wallets_set = set()
-        for trade in big_trades:
-            w = trade.get("proxyWallet")
-            if w:
-                wallets_set.add(w)
-
-        print(f"[PolyWatch] Checking {len(wallets_set)} unique traders for big PnL...")
+        print(f"[PolyWatch] Found {len(positions)} positions with PnL >= ${threshold:,.0f} from recent trades.")
 
         # Collect all claims and sort by absolute PnL (biggest first)
         all_claims = []
-        for wallet in wallets_set:
-            try:
-                claims = client.get_recent_big_claims(wallet, min_profit=threshold, since_minutes=since_minutes)
-            except Exception as e:
+        for row in positions:
+            wallet = row.get("wallet") or row.get("proxyWallet")
+            if not wallet:
                 continue
 
-            if not claims:
+            uid = unique_id(wallet, row)
+            if posted.contains(uid):
+                print(f"[PolyWatch] Skipping {uid} — already posted")
                 continue
 
             display = client.lookup_profile_name(wallet) or short_wallet(wallet)
-            for row in claims:
-                uid = unique_id(wallet, row)
-                if posted.contains(uid):
-                    print(f"[PolyWatch] Skipping {uid} — already posted")
-                    continue
-                pnl = float(row.get("realizedPnl", 0) or 0)
-                all_claims.append({
-                    "id": uid,
-                    "wallet": wallet,
-                    "display": display,
-                    "row": row,
-                    "pnl": pnl,
-                    "abs_pnl": abs(pnl),
-                })
+            pnl = float(row.get("realizedPnl", 0) or 0)
+
+            all_claims.append({
+                "id": uid,
+                "wallet": wallet,
+                "display": display,
+                "row": row,
+                "pnl": pnl,
+                "abs_pnl": abs(pnl),
+            })
 
         if not all_claims:
             print("[PolyWatch] No new qualifying claims found.")
