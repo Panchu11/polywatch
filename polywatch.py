@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 
 from polymarket_client import PolymarketClient
 from twitter_client import TwitterClient
+from ai_client import AIClient
 from state_store import PostedCache, save_json, load_json
 from utils import env_bool, env_int, format_usd, describe_pnl, now_utc, now_utc_iso, short_wallet
 
@@ -17,7 +18,7 @@ PENDING_PATH = "tweets.json"
 DEFAULT_THRESHOLD = 10000
 DEFAULT_SINCE_MINUTES = 30
 
-FOOTER = " Follow @Panchu2605 - The brain behind me."
+FOOTER = " Tracked by @Panchu2605"
 MAX_TWEET_LEN = 280
 
 
@@ -40,23 +41,43 @@ def unique_id(wallet: str, row: Dict[str, Any]) -> str:
     return f"{wallet}:{row.get('conditionId')}:{row.get('endDate')}"
 
 
-def apply_footer_and_trim(text: str) -> str:
-    crafted = (text or "").strip() + FOOTER
+def apply_footer_and_trim(text: str, wallet: str = "") -> str:
+    """Apply footer and trim to fit Twitter character limit."""
+    footer = FOOTER
+    if wallet:
+        # Add Polymarket profile link
+        profile_link = f" https://polymarket.com/profile/{wallet}?ref=caneleo"
+        footer = profile_link + footer
+
+    crafted = (text or "").strip() + footer
     if len(crafted) <= MAX_TWEET_LEN:
         return crafted
-    return (crafted[: MAX_TWEET_LEN - 3]).rstrip() + "..."
+    # Trim to fit, leaving room for footer
+    available = MAX_TWEET_LEN - len(footer) - 3
+    return (text or "")[:available].rstrip() + "..." + footer
 
 
-def format_tweet(name_or_addr: str, row: Dict[str, Any]) -> str:
+def format_tweet(ai_client: AIClient, wallet: str, row: Dict[str, Any]) -> str:
+    """Generate tweet using AI model with shortened wallet address."""
     title = row.get("title") or row.get("slug") or "a market"
     outcome = row.get("outcome") or row.get("oppositeOutcome") or "?"
     pnl = float(row.get("realizedPnl", 0) or 0)
-    wallet = row.get("proxyWallet", "")
+    full_wallet = wallet or row.get("proxyWallet", "")
 
-    # Show full wallet address
-    who = wallet if wallet else name_or_addr
-    base = f"{who} claimed {outcome} on '{title}' with {describe_pnl(pnl)}! 📊 Tracked by @Panchu2605"
-    return apply_footer_and_trim(base)
+    # Use shortened wallet for display
+    short_addr = short_wallet(full_wallet)
+
+    # Try to generate AI tweet
+    ai_tweet = ai_client.generate_tweet(short_addr, pnl, title, outcome)
+
+    if ai_tweet:
+        # Use AI-generated tweet
+        base = ai_tweet
+    else:
+        # Fallback to simple format if AI fails
+        base = f"{short_addr} claimed {outcome} on '{title}' with {describe_pnl(pnl)}! 📊"
+
+    return apply_footer_and_trim(base, full_wallet)
 
 
 def within_daily_cap(cache: PostedCache, max_per_day: int) -> bool:
@@ -76,6 +97,7 @@ def main():
 
     client = PolymarketClient()
     tw = TwitterClient()
+    ai = AIClient()
     posted = PostedCache(POSTED_PATH)
     pending: List[Dict[str, Any]] = load_json(PENDING_PATH, default=[])
 
@@ -159,7 +181,7 @@ def main():
         print(f"[PolyWatch] Found {len(all_claims)} qualifying claims, posting top {len(top_claims)}")
 
         for claim in top_claims:
-            text = format_tweet(claim["display"], claim["row"])
+            text = format_tweet(ai, claim["wallet"], claim["row"])
             entry = {
                 "id": claim["id"],
                 "wallet": claim["wallet"],
@@ -188,7 +210,7 @@ def main():
                 uid = unique_id(wallet, row)
                 if posted.contains(uid):
                     continue
-                text = format_tweet(display, row)
+                text = format_tweet(ai, wallet, row)
                 entry = {
                     "id": uid,
                     "wallet": wallet,
