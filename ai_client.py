@@ -25,55 +25,47 @@ class AIClient:
         pnl_abs = abs(pnl)
         pnl_str = f"${pnl_abs:,.2f}"
 
-        # Create prompt for Dobby - EXTREMELY UNHINGED with diverse styles (NO CHARACTER LIMIT - X Premium)
+        # Create prompt for Dobby - EXTREMELY UNHINGED with diverse styles (SHORTER, PUNCHIER)
         if is_win:
             # Multiple diverse winning prompts to avoid repetition
             win_prompts = [
-                f"""Generate an EXTREMELY UNHINGED, PROFANE, CHAOTIC WINNER tweet about {wallet} making {pnl_str} profit on @Polymarket. MUST mention @Polymarket explicitly.
+                f"""Generate a SHORT, UNHINGED, PROFANE WINNER tweet about {wallet} making {pnl_str} profit on Polymarket.
 Market: {market} - {outcome}
 
-FORMAT WITH LINE BREAKS for readability on X. Use multiple lines, not one continuous block. Each sentence or thought on a new line.
-Be INSANELY funny, use profanity, be chaotic and celebratory. Use LOTS of emojis. MAXIMUM UNHINGED. MUST include @Polymarket. Go wild, no character limit!""",
-                f"""Generate a COMPLETELY UNHINGED, CHAOTIC, PROFANE tweet celebrating {wallet} CRUSHING IT with {pnl_str} on @Polymarket. MUST mention @Polymarket.
+KEEP IT SHORT (3-4 lines max). Use line breaks. Be funny, profane, chaotic. Use emojis. Mention "Polymarket" or "@Polymarket" ONCE in the middle/body, NOT at the start. Never start with @mention!""",
+                f"""Generate a SHORT, CHAOTIC, PROFANE tweet celebrating {wallet} CRUSHING IT with {pnl_str} on Polymarket.
 Market: {market} - {outcome}
 
-FORMAT WITH LINE BREAKS for readability on X. Use multiple lines, not one continuous block. Each sentence or thought on a new line.
-Be absolutely INSANE, use extreme profanity, be celebratory and chaotic. Use TONS of emojis. MAXIMUM CHAOS. MUST include @Polymarket. No limits, go crazy!""",
-                f"""Generate an ABSOLUTELY BONKERS, PROFANE, UNHINGED tweet about {wallet} PRINTING {pnl_str} on @Polymarket. MUST mention @Polymarket explicitly.
+KEEP IT SHORT (3-4 lines). Use line breaks. Be insane, profane, celebratory. Lots of emojis. Mention @Polymarket or Polymarket ONCE in the body, NOT at start. Never start with @!""",
+                f"""Generate a SHORT, BONKERS, PROFANE tweet about {wallet} PRINTING {pnl_str} on Polymarket.
 Market: {market} - {outcome}
 
-FORMAT WITH LINE BREAKS for readability on X. Use multiple lines, not one continuous block. Each sentence or thought on a new line.
-Be MAXIMALLY UNHINGED, use profanity, be chaotic and wild. Use LOTS of emojis. EXTREME CHAOS. MUST include @Polymarket. No character limit, be insane!""",
-                f"""Generate a COMPLETELY DERANGED, PROFANE, CHAOTIC tweet about {wallet} MOONING with {pnl_str} on @Polymarket. MUST mention @Polymarket.
+KEEP IT SHORT (3-4 lines max). Line breaks. Be unhinged, profane, wild. Emojis. Mention Polymarket or @Polymarket ONCE in middle/body, NEVER at the start!""",
+                f"""Generate a SHORT, DERANGED, PROFANE tweet about {wallet} MOONING with {pnl_str} on Polymarket.
 Market: {market} - {outcome}
 
-FORMAT WITH LINE BREAKS for readability on X. Use multiple lines, not one continuous block. Each sentence or thought on a new line.
-Be INSANELY UNHINGED, use extreme profanity, be absolutely chaotic. Use TONS of emojis. MAXIMUM UNHINGED. MUST include @Polymarket. Go absolutely wild!""",
+KEEP IT SHORT (3-4 lines). Line breaks. Be unhinged, profane, chaotic. Emojis. Tag @Polymarket or say Polymarket ONCE in the body, NOT at beginning!""",
             ]
             prompt = win_prompts[hash(wallet) % len(win_prompts)]
         else:
             # Multiple diverse losing prompts to avoid repetition
             loss_prompts = [
-                f"""Generate an EXTREMELY UNHINGED, PROFANE, CHAOTIC LOSER tweet about {wallet} LOSING {pnl_str} on @Polymarket. MUST mention @Polymarket explicitly.
+                f"""Generate a SHORT, UNHINGED, PROFANE LOSER tweet about {wallet} LOSING {pnl_str} on Polymarket.
 Market: {market} - {outcome}
 
-FORMAT WITH LINE BREAKS for readability on X. Use multiple lines, not one continuous block. Each sentence or thought on a new line.
-Be INSANELY funny, use profanity, roast them hard, be chaotic. Use LOTS of emojis. MAXIMUM UNHINGED. MUST include @Polymarket. No character limit, go wild!""",
-                f"""Generate a COMPLETELY UNHINGED, PROFANE, CHAOTIC tweet about {wallet} GETTING REKT for {pnl_str} on @Polymarket. MUST mention @Polymarket.
+KEEP IT SHORT (3-4 lines max). Line breaks. Be funny, profane, roast them. Emojis. Mention Polymarket or @Polymarket ONCE in the body, NOT at start!""",
+                f"""Generate a SHORT, UNHINGED, PROFANE tweet about {wallet} GETTING REKT for {pnl_str} on Polymarket.
 Market: {market} - {outcome}
 
-FORMAT WITH LINE BREAKS for readability on X. Use multiple lines, not one continuous block. Each sentence or thought on a new line.
-Be absolutely INSANE, use extreme profanity, roast them mercilessly, be chaotic. Use TONS of emojis. MAXIMUM CHAOS. MUST include @Polymarket. No limits!""",
-                f"""Generate an ABSOLUTELY BONKERS, PROFANE, UNHINGED tweet about {wallet} BLOWING {pnl_str} on @Polymarket. MUST mention @Polymarket explicitly.
+KEEP IT SHORT (3-4 lines). Line breaks. Be insane, profane, roast hard. Emojis. Mention @Polymarket or Polymarket ONCE in middle, NEVER at the start!""",
+                f"""Generate a SHORT, BONKERS, PROFANE tweet about {wallet} BLOWING {pnl_str} on Polymarket.
 Market: {market} - {outcome}
 
-FORMAT WITH LINE BREAKS for readability on X. Use multiple lines, not one continuous block. Each sentence or thought on a new line.
-Be MAXIMALLY UNHINGED, use profanity, roast them hard, be chaotic and wild. Use LOTS of emojis. EXTREME CHAOS. MUST include @Polymarket. Go insane!""",
-                f"""Generate a COMPLETELY DERANGED, PROFANE, CHAOTIC tweet about {wallet} DUMPING {pnl_str} on @Polymarket. MUST mention @Polymarket.
+KEEP IT SHORT (3-4 lines max). Line breaks. Be unhinged, profane, roast. Emojis. Mention Polymarket or @Polymarket ONCE in body, NOT at beginning!""",
+                f"""Generate a SHORT, DERANGED, PROFANE tweet about {wallet} DUMPING {pnl_str} on Polymarket.
 Market: {market} - {outcome}
 
-FORMAT WITH LINE BREAKS for readability on X. Use multiple lines, not one continuous block. Each sentence or thought on a new line.
-Be INSANELY UNHINGED, use extreme profanity, roast them, be absolutely chaotic. Use TONS of emojis. MAXIMUM UNHINGED. MUST include @Polymarket. Go wild!""",
+KEEP IT SHORT (3-4 lines). Line breaks. Be unhinged, profane, chaotic. Emojis. Tag @Polymarket or say Polymarket ONCE in the body, NOT at start!""",
             ]
             prompt = loss_prompts[hash(wallet) % len(loss_prompts)]
 
@@ -87,7 +79,7 @@ Be INSANELY UNHINGED, use extreme profanity, roast them, be absolutely chaotic. 
                 json={
                     "model": self.model_id,
                     "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 150,
+                    "max_tokens": 100,
                     "temperature": 0.9,  # High temperature for unhinged behavior
                 },
                 timeout=30,

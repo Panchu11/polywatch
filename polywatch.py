@@ -250,10 +250,18 @@ def main():
         print("[PolyWatch] No new qualifying claims found.")
         return
 
+    # Deduplicate: filter out tweets already in pending queue
+    pending_ids = {entry["id"] for entry in pending}
+    new_tweets_deduped = [t for t in new_tweets if t["id"] not in pending_ids]
+
+    if not new_tweets_deduped:
+        print("[PolyWatch] All new tweets already in pending queue — skipping.")
+        return
+
     # Save to pending queue for review (append)
-    pending.extend(new_tweets)
+    pending.extend(new_tweets_deduped)
     save_json(PENDING_PATH, pending)
-    print(f"[PolyWatch] Queued {len(new_tweets)} tweets to {PENDING_PATH}")
+    print(f"[PolyWatch] Queued {len(new_tweets_deduped)} tweets to {PENDING_PATH} (total pending: {len(pending)})")
 
     # Post if allowed
     if not cap_ok:
