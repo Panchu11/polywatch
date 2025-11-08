@@ -15,11 +15,11 @@ from utils import env_bool, env_int, format_usd, describe_pnl, now_utc, now_utc_
 WALLETS_PATH = "wallets.json"
 POSTED_PATH = "posted.json"
 
-DEFAULT_THRESHOLD = 1000
+DEFAULT_THRESHOLD = 10000
 DEFAULT_SINCE_MINUTES = 90
 
 FOOTER = "\nBuilt by @ForgeLabs__"
-CTA = "To copy trade this profile set a TG alert on his Polymarket future beta using https://tinyurl.com/3fe62ksz"
+CTA = "Copy trade via TG alerts: https://tinyurl.com/3fe62ksz"
 
 MAX_TWEET_LEN = 280  # Enforce classic 280-char limit
 
@@ -292,22 +292,28 @@ def format_tweet(ai_client: AIClient, wallet: str, row: Dict[str, Any], client: 
     pnl = float(row.get("realizedPnl", 0) or 0)
     full_wallet = wallet or row.get("proxyWallet", "")
 
-    # Try to get profile name, fallback to shortened wallet
+    # Try to get X/Twitter handle first, then profile name, fallback to shortened wallet
     display_name = None
     if client:
-        display_name = client.lookup_profile_name(full_wallet)
+        # Try to get X handle
+        twitter_handle = client.get_twitter_handle(full_wallet)
+        if twitter_handle:
+            display_name = f"@{twitter_handle}"
+        else:
+            # Fallback to profile name
+            display_name = client.lookup_profile_name(full_wallet)
 
     if not display_name:
         display_name = short_wallet(full_wallet)
 
-    # Try to generate AI tweet
+    # Generate tweet - our new generator already includes proper @Polymarket placement
     ai_tweet = ai_client.generate_tweet(display_name, pnl, title, outcome)
 
     if ai_tweet:
-        # Use AI-generated tweet with sanitization
-        base = _sanitize_ai_text(ai_tweet)
+        # Use AI-generated tweet directly (already properly formatted)
+        base = ai_tweet
     else:
-        # Fallback to simple format if AI fails — ensure "on @Polymarket" phrasing
+        # Fallback to simple format if AI fails
         base = f"{display_name} just made a big move on {title} on @Polymarket! \U0001F3AF"
 
     return apply_footer_and_trim(base, full_wallet, pnl, title, outcome)
@@ -357,7 +363,12 @@ def main():
     global_mode = env_bool("GLOBAL_MODE", True) or not wallets
 
     if global_mode:
+        require_x_handle = env_bool("REQUIRE_X_HANDLE", False)
         print("[PolyWatch] Running in GLOBAL mode (calculating PnL from recent trades)")
+        if require_x_handle:
+            print("[PolyWatch] X Handle Filter: ENABLED (only posting trades from users with linked X handles)")
+        else:
+            print("[PolyWatch] X Handle Filter: DISABLED (posting all qualifying trades)")
 
         try:
             positions = client.get_recent_pnl_from_trades(since_minutes=since_minutes, min_pnl=threshold)
@@ -373,6 +384,9 @@ def main():
 
         print(f"[PolyWatch] Found {len(positions)} positions with PnL >= ${threshold:,.0f} from recent trades.")
 
+        # Check if we should filter by X handle
+        require_x_handle = env_bool("REQUIRE_X_HANDLE", False)
+
         # Collect all claims and sort by absolute PnL (biggest first)
         all_claims = []
         for row in positions:
@@ -384,6 +398,13 @@ def main():
             if posted.contains(uid):
                 print(f"[PolyWatch] Skipping {uid} — already posted")
                 continue
+
+            # If filtering by X handle, check if user has one
+            if require_x_handle:
+                twitter_handle = client.get_twitter_handle(wallet)
+                if not twitter_handle:
+                    print(f"[PolyWatch] Skipping {short_wallet(wallet)} — no X handle linked")
+                    continue
 
             display = client.lookup_profile_name(wallet) or short_wallet(wallet)
             pnl = float(row.get("realizedPnl", 0) or 0)
@@ -398,7 +419,10 @@ def main():
             })
 
         if not all_claims:
-            print("[PolyWatch] No new qualifying claims found.")
+            if require_x_handle:
+                print("[PolyWatch] No new qualifying claims found with X handles linked.")
+            else:
+                print("[PolyWatch] No new qualifying claims found.")
             return
 
         # Sort by absolute PnL (biggest first) and take top 1

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import requests
+import re
 from datetime import timedelta
 from typing import Any, Dict, List, Optional
 from utils import parse_iso, now_utc
@@ -200,4 +201,58 @@ class PolymarketClient:
         if profiles:
             return profiles[0].get("pseudonym") or profiles[0].get("name")
         return None
+
+    def get_twitter_handle(self, wallet: str) -> Optional[str]:
+        """
+        Fetch X/Twitter handle from Polymarket profile page.
+
+        Returns the handle without @ prefix, or None if not found.
+        Uses a simple regex-based approach to extract from embedded JSON data.
+        """
+        try:
+            # Fetch the profile page HTML
+            profile_url = f"https://polymarket.com/profile/{wallet}"
+            response = self.session.get(profile_url, timeout=self.timeout)
+            response.raise_for_status()
+            html = response.text
+
+            # Look for social links in the embedded JSON data
+            # Pattern: "socialLinks":[{"type":"twitter","url":"https://x.com/username"}]
+            # or "twitter":"username" or similar
+
+            # Try to find Twitter/X link in socialLinks array
+            social_links_match = re.search(
+                r'"socialLinks"\s*:\s*\[([^\]]+)\]',
+                html
+            )
+            if social_links_match:
+                social_links_json = social_links_match.group(1)
+                # Look for twitter type with URL
+                twitter_url_match = re.search(
+                    r'"type"\s*:\s*"twitter"[^}]*"url"\s*:\s*"(?:https?://)?(?:www\.)?(?:twitter\.com|x\.com)/([a-zA-Z0-9_]+)"',
+                    social_links_json
+                )
+                if twitter_url_match:
+                    handle = twitter_url_match.group(1)
+                    # Filter out common non-user paths and Polymarket itself
+                    if handle.lower() not in ['intent', 'share', 'i', 'home', 'explore', 'notifications', 'messages', 'polymarket']:
+                        return handle
+
+            # Fallback: look for any X/Twitter link in the page (but filter more strictly)
+            # This is less reliable but might catch some cases
+            all_twitter_links = re.findall(
+                r'(?:https?://)?(?:www\.)?(?:twitter\.com|x\.com)/([a-zA-Z0-9_]+)',
+                html
+            )
+            for handle in all_twitter_links:
+                # Filter out common non-user paths and Polymarket
+                if handle.lower() not in ['intent', 'share', 'i', 'home', 'explore', 'notifications', 'messages', 'polymarket', 'forgelabs__']:
+                    return handle
+
+            return None
+
+        except Exception as e:
+            # Silently fail - X handle is optional
+            print(f"Warning: Could not fetch X handle for {wallet}: {e}")
+            return None
 
