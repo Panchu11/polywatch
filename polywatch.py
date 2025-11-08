@@ -19,6 +19,8 @@ DEFAULT_THRESHOLD = 1000
 DEFAULT_SINCE_MINUTES = 90
 
 FOOTER = "\nBuilt by @ForgeLabs__"
+CTA = "To copy trade this profile set a TG alert on his Polymarket future beta using https://tinyurl.com/3fe62ksz"
+
 MAX_TWEET_LEN = 280  # Enforce classic 280-char limit
 
 
@@ -53,19 +55,27 @@ def apply_footer_and_trim(text: str, wallet: str = "", pnl: float = 0, market: s
     # Collapse AI multi-line into a single first-line paragraph
     ai_line = " ".join((text or "").strip().splitlines())
 
-    # Ensure @Polymarket mention is present in the FIRST sentence so it survives trimming
+    # Ensure first sentence ends with "on @Polymarket" so it survives trimming
     _sent = re.split(r"(?<=[.!?])\s+", ai_line) if ai_line else []
     if _sent:
         if "@Polymarket" not in _sent[0]:
-            # Insert before terminal punctuation so it stays in sentence 0
+            # Insert before terminal punctuation; avoid double "on"
             m = re.match(r"^(.*?)([.!?]+)$", _sent[0])
             if m:
-                _sent[0] = (m.group(1).rstrip() + " @Polymarket" + m.group(2))
+                base, punct = m.group(1).rstrip(), m.group(2)
+                base = re.sub(r"\s+on\s*$", "", base, flags=re.IGNORECASE)
+                _sent[0] = (base + " on @Polymarket" + punct)
             else:
-                _sent[0] = (_sent[0].rstrip() + " @Polymarket")
+                s0 = re.sub(r"\s+on\s*$", "", _sent[0].rstrip(), flags=re.IGNORECASE)
+                _sent[0] = (s0 + " on @Polymarket")
         ai_line = " ".join(_sent)
     else:
-        ai_line = "@Polymarket"
+        ai_line = "on @Polymarket"
+
+    # Heuristic fix: if the AI left a dangling "vs" before the tag, replace with the full market name
+    if market:
+        ai_line = re.sub(r"\bon\s+[^.!?]*?\bvs\.?\s+on @Polymarket\b", f"on {market} on @Polymarket", ai_line, flags=re.IGNORECASE)
+        ai_line = re.sub(r"\bvs\.?\s+on @Polymarket\b", f"{market} on @Polymarket", ai_line, flags=re.IGNORECASE)
 
 
     def build_lines(ai: str) -> list[str]:
@@ -82,6 +92,7 @@ def apply_footer_and_trim(text: str, wallet: str = "", pnl: float = 0, market: s
             lines.append(profile_link)
         lines.append("")
         lines.append(FOOTER)
+        lines.append(CTA)
         return lines
 
     def build_lines_compact(ai: str) -> list[str]:
@@ -96,6 +107,7 @@ def apply_footer_and_trim(text: str, wallet: str = "", pnl: float = 0, market: s
             lines.append(link_emoji)
             lines.append(profile_link)
         lines.append(FOOTER)
+        lines.append(CTA)
         return lines
 
     # Initial attempt with full formatting
@@ -149,6 +161,35 @@ def apply_footer_and_trim(text: str, wallet: str = "", pnl: float = 0, market: s
                 return crafted_c
             words.pop()
 
+    # Before falling back to minimal AI, progressively drop non-essential lines while keeping the first sentence (to preserve display_name)
+    if first_sentence:
+        lines_keep = build_lines_compact(first_sentence)
+        # Drop chart line first
+        lines_no_chart = [ln for ln in lines_keep if not ln.startswith(f"{chart_up} ")]
+        crafted_nc = "\n".join(lines_no_chart)
+        if len(crafted_nc) <= MAX_TWEET_LEN:
+            return crafted_nc
+        # Drop link emoji glyph next (keep URL)
+        lines_no_emoji = [ln for ln in lines_no_chart if ln != link_emoji]
+        crafted_ne = "\n".join(lines_no_emoji)
+        if len(crafted_ne) <= MAX_TWEET_LEN:
+            return crafted_ne
+        # Try shrinking the AI line to identity-only while keeping money line
+        if wallet and short_wallet(wallet) in first_sentence:
+            identity_only = f"{short_wallet(wallet)} on @Polymarket"
+        else:
+            identity_only = "Trader on @Polymarket"
+        lines_shrink = [identity_only] + [ln for ln in lines_no_emoji[1:]]
+        crafted_shrink = "\n".join(lines_shrink)
+        if len(crafted_shrink) <= MAX_TWEET_LEN:
+            return crafted_shrink
+
+        # Drop money line only if still too long
+        lines_no_money = [ln for ln in lines_no_emoji if not ln.startswith(f"{money_bag} ")]
+        crafted_nm = "\n".join(lines_no_money)
+        if len(crafted_nm) <= MAX_TWEET_LEN:
+            return crafted_nm
+
     # ONLY NOW fall back to minimal AI (as absolute last resort)
     minimal_ai = "Massive move. @Polymarket"
     attempt = "\n".join(build_lines_compact(minimal_ai))
@@ -166,56 +207,81 @@ def apply_footer_and_trim(text: str, wallet: str = "", pnl: float = 0, market: s
             return crafted_c
         words.pop()
 
-    # As a last resort, return the compact minimal variant with hard-cropped market
+    # As a last resort, try compact minimal variant and progressively drop non-essential lines until it fits
     mk = market
     lines_c = build_lines_compact(minimal_ai)
     while True:
         lines_c[2] = f"{chart_up} Market: {mk}".rstrip()
         crafted_c = "\n".join(lines_c)
-        if len(crafted_c) <= MAX_TWEET_LEN or not mk:
+        if len(crafted_c) <= MAX_TWEET_LEN:
             return crafted_c
+        if not mk:
+            break
         if " " in mk:
             mk = mk.rsplit(" ", 1)[0]
         else:
             mk = mk[:-1]
 
+    # If still too long after emptying market title, drop chart line
+    lines_no_chart = [ln for ln in lines_c if not ln.startswith(f"{chart_up} ")]
+    crafted_nc = "\n".join(lines_no_chart)
+    if len(crafted_nc) <= MAX_TWEET_LEN:
+        return crafted_nc
+
+    # Drop money line next
+    lines_no_money = [ln for ln in lines_no_chart if not ln.startswith(f"{money_bag} ")]
+    crafted_nm = "\n".join(lines_no_money)
+    if len(crafted_nm) <= MAX_TWEET_LEN:
+        return crafted_nm
+
+    # Drop link emoji glyph (keep the URL line)
+    lines_no_emoji = [ln for ln in lines_no_money if ln != link_emoji]
+    crafted_ne = "\n".join(lines_no_emoji)
+    if len(crafted_ne) <= MAX_TWEET_LEN:
+        return crafted_ne
+
+    # Absolute fallback: shrink AI line to a tiny identity (avoid '...' from short wallets)
+    tail = [ln for ln in lines_no_emoji if ln != lines_no_emoji[0]]
+    tiny_ai = "Trader on @Polymarket"
+    assembled = "\n".join([tiny_ai] + tail)
+    return assembled[:MAX_TWEET_LEN]
+
 
 def _sanitize_ai_text(text: str) -> str:
-    """Ensure @Polymarket is mentioned correctly in the format 'on @Polymarket'."""
+    """Place @Polymarket naturally: ensure first sentence ends with "on @Polymarket" and remove stray mentions elsewhere."""
     # Normalize CRLF to LF and trim trailing spaces on lines
-    text = text.replace("\r", "")
+    text = (text or "").replace("\r", "")
     text = "\n".join(line.rstrip() for line in text.split("\n"))
 
-    # Normalize any @Polymarket variants to canonical form
+    # Normalize any @Polymarket variants to the canonical handle, then remove all occurrences
     text = re.sub(r"@Polymarket\w+", "@Polymarket", text)
-
-    # Check if AI already used the correct format "on @Polymarket"
-    if "on @Polymarket" in text:
-        # Good! AI followed instructions. Just clean up spacing.
-        text = re.sub(r"\s+", " ", text).strip()
-        return text
-
-    # AI didn't use correct format. Remove all @Polymarket and add it properly.
-    # Remove ALL @Polymarket mentions
     text = re.sub(r"@Polymarket\s*", "", text)
 
-    # Clean up any leftover artifacts from removal
+    # Clean up artifacts from removal
     text = re.sub(r"\s+\.\s+", ". ", text)  # " . " -> ". "
     text = re.sub(r"\s+\.", ".", text)       # " ." -> "."
+    # If removal left a trailing "on" before punctuation (e.g., "game on."), drop it
+    text = re.sub(r"\s+on(\s*[.!?])", r"\1", text, flags=re.IGNORECASE)
     text = re.sub(r"\s+", " ", text).strip()
 
-    # Add "on @Polymarket" at the end of the FIRST sentence
+    # Add "on @Polymarket" at the end of the FIRST sentence (before its terminal punctuation if present)
     sentences = re.split(r"(?<=[.!?])\s+", text) if text else []
     if sentences:
-        # Add "on @Polymarket" before the terminal punctuation of the first sentence
         m = re.match(r"^(.*?)([.!?]+)$", sentences[0])
         if m:
-            sentences[0] = (m.group(1).rstrip() + " on @Polymarket" + m.group(2))
+            base, punct = m.group(1).rstrip(), m.group(2)
+            # Avoid double "on" when appending
+            base = re.sub(r"\s+on\s*$", "", base, flags=re.IGNORECASE)
+            sentences[0] = f"{base} on @Polymarket{punct}"
         else:
-            sentences[0] = (sentences[0].rstrip() + " on @Polymarket")
+            s0 = re.sub(r"\s+on\s*$", "", sentences[0].rstrip(), flags=re.IGNORECASE)
+            sentences[0] = s0 + " on @Polymarket"
         text = " ".join(sentences)
     else:
         text = "on @Polymarket"
+    # Final cleanups to avoid artifacts like "on on @Polymarket" or a stray trailing "on"
+    text = re.sub(r"\bon\s+on\s+@Polymarket\b", "on @Polymarket", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?i)(?<!@Polymarket)\s+on\s*$", "", text)
     return text
 
 
@@ -241,8 +307,8 @@ def format_tweet(ai_client: AIClient, wallet: str, row: Dict[str, Any], client: 
         # Use AI-generated tweet with sanitization
         base = _sanitize_ai_text(ai_tweet)
     else:
-        # Fallback to simple format if AI fails - still include @Polymarket
-        base = f"{display_name} just made a big move on '{title}' with {describe_pnl(pnl)} via @Polymarket! \U0001F3AF"
+        # Fallback to simple format if AI fails — ensure "on @Polymarket" phrasing
+        base = f"{display_name} just made a big move on {title} on @Polymarket! \U0001F3AF"
 
     return apply_footer_and_trim(base, full_wallet, pnl, title, outcome)
 
